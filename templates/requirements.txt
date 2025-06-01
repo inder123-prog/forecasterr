@@ -3,6 +3,7 @@ flask_cors
 yfinance
 pandas
 prophet
+flask
 # pystan is a dependency of prophet, might need specific install steps if issues arise
 # For prophet, you might need to install pystan first, and potentially a C++ compiler.
 # If 'pip install prophet' fails, check Prophet's installation guide.
