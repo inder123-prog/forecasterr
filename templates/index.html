@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Forecast Demo</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 700px; margin: auto;}
+        h1 { color: #333; text-align: center; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        input[type="file"] { display: block; margin-top: 10px; margin-bottom: 20px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button {
+            background-color: #007bff; color: white; padding: 10px 15px; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 16px; display: block; width: 100%;
+        }
+        button:hover { background-color: #0056b3; }
+        .results { margin-top: 20px; padding: 15px; border: 1px solid #eee; border-radius: 4px; background-color: #f9f9f9;}
+        .results h2 { margin-top: 0; color: #007bff; }
+        .results p { margin: 8px 0; }
+        .recommendation { font-weight: bold; }
+        .buy { color: green; }
+        .sell { color: red; }
+        .neutral { color: orange; }
+        .loader {
+            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 20px auto; display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error { color: red; font-weight: bold; }
+        .daily-forecast-day { border: 1px solid #e0e0e0; padding: 10px; margin-bottom: 10px; border-radius: 4px; background-color: #fdfdfd; }
+        .daily-forecast-day h4 { margin-top: 0; margin-bottom: 5px; color: #555; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Stock Price Forecast</h1>
+        <label for="ticker">Enter Stock Ticker (e.g., AAPL, MSFT):</label>
+        <input type="text" id="ticker" name="ticker" placeholder="AAPL">
+
+        <label for="marketCountry">Market (for Holidays):</label>
+        <select id="marketCountry" name="marketCountry">
+            <option value="US" selected>United States (US)</option>
+            <option value="CA">Canada (CA)</option>
+            <option value="GB">United Kingdom (GB)</option>
+            <option value="DE">Germany (DE)</option>
+            <option value="IN">India (IN)</option>
+        </select>
+
+        <label for="chartImage">Upload Stock Chart Screenshot (Optional):</label>
+        <input type="file" id="chartImage" name="chartImage" accept="image/*">
+
+        <button onclick="getForecast()">Get Forecast</button>
+
+        <div class="loader" id="loader"></div>
+        <div id="forecastResult" class="results" style="display:none;">
+            <!-- Results will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        function displayValue(value, prefix = "$", suffix = "") {
+            if (value === null || value === undefined || value === "N/A" || value === "undefined") {
+                return "N/A";
+            }
+            return `${prefix}${value}${suffix}`;
+        }
+
+        async function getForecast() {
+            const ticker = document.getElementById('ticker').value.toUpperCase();
+            const imageFile = document.getElementById('chartImage').files[0];
+            const marketCountry = document.getElementById('marketCountry').value;
+            const resultDiv = document.getElementById('forecastResult');
+            const loader = document.getElementById('loader');
+
+            if (!ticker) {
+                resultDiv.innerHTML = '<p class="error">Please enter a stock ticker.</p>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            resultDiv.style.display = 'none';
+            loader.style.display = 'block';
+
+            const formData = new FormData();
+            formData.append('ticker', ticker);
+            formData.append('market_country', marketCountry);
+            if (imageFile) {
+                formData.append('chartImage', imageFile);
+            }
+
+            try {
+                const response = await fetch('http://localhost:5001/forecast_with_image', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                loader.style.display = 'none';
+                resultDiv.style.display = 'block';
+
+                if (!response.ok) {
+                    let errorMessage = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error ? errorData.error : `Server error, please check logs.`;
+                    } catch (e) {
+                        const errorText = await response.text();
+                        errorMessage = errorText ? errorText.substring(0, 300) : `Server error, response not JSON.`;
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                const data = await response.json();
+
+                let imageAnalysisHtml = '';
+                if (data.image_analysis_sentiment && data.image_analysis_sentiment !== "Not Provided") {
+                    imageAnalysisHtml = `<p><strong>Chart Image Sentiment:</strong> ${data.image_analysis_sentiment}</p>`;
+                }
+
+                let threeDayForecastHtml = '<h3>Next 3 Days Forecast:</h3>';
+                if (data.three_day_forecast && data.three_day_forecast.length > 0) {
+                    data.three_day_forecast.forEach(dayForecast => {
+                        let recClass = 'neutral';
+                        if (dayForecast.recommendation.toLowerCase().includes('buy')) recClass = 'buy';
+                        if (dayForecast.recommendation.toLowerCase().includes('sell')) recClass = 'sell';
+
+                        threeDayForecastHtml += `
+                            <div class="daily-forecast-day">
+                                <h4>Forecast for ${dayForecast.date || 'N/A'}:</h4>
+                                <p><strong>Predicted Price:</strong> ${displayValue(dayForecast.price)}</p>
+                                <p><em>Confidence Interval:</em> ${displayValue(dayForecast.lower_bound)} - ${displayValue(dayForecast.upper_bound)}</p>
+                                <p><strong>Recommendation:</strong> <span class="recommendation ${recClass}">${dayForecast.recommendation || 'N/A'}</span></p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    threeDayForecastHtml += '<p>Daily forecast data not available.</p>';
+                }
+
+                let weekAheadForecastHtml = '';
+                if (data.forecast_week_ahead && data.forecast_week_ahead.price !== "N/A") {
+                    let weekRecClass = 'neutral';
+                    if (data.forecast_week_ahead.recommendation.toLowerCase().includes('buy')) weekRecClass = 'buy';
+                    if (data.forecast_week_ahead.recommendation.toLowerCase().includes('sell')) weekRecClass = 'sell';
+                    weekAheadForecastHtml = `
+                        <hr>
+                        <h3>Week Ahead Forecast (for ${data.forecast_week_ahead.date || 'N/A'}):</h3>
+                        <p><strong>Predicted Price:</strong> ${displayValue(data.forecast_week_ahead.price)}</p>
+                        <p><em>Confidence Interval:</em> ${displayValue(data.forecast_week_ahead.lower_bound)} - ${displayValue(data.forecast_week_ahead.upper_bound)}</p>
+                        <p><strong>Recommendation:</strong> <span class="recommendation ${weekRecClass}">${data.forecast_week_ahead.recommendation || 'N/A'}</span></p>
+                    `;
+                } else {
+                     weekAheadForecastHtml = '<hr><h3>Week Ahead Forecast:</h3><p>Week ahead forecast data not available.</p>';
+                }
+
+                resultDiv.innerHTML = `
+                    <h2>Forecast for ${data.ticker || 'N/A'}</h2>
+                    <p><strong>Current Price (as of ${data.last_known_date || 'N/A'}):</strong> ${displayValue(data.current_price)}</p>
+                    ${imageAnalysisHtml}
+                    <hr>
+                    ${threeDayForecastHtml}
+                    ${weekAheadForecastHtml}
+                `;
+
+            } catch (error) {
+                loader.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                console.error('Error fetching forecast:', error);
+            }
+        }
+    </script>
+</body>
+</html>
