@@ -28,6 +28,49 @@
             color: var(--text-main);
         }
 
+        .top-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0f172a;
+            color: #fff;
+            padding: 16px 24px;
+            border-radius: 18px;
+            margin-bottom: 24px;
+            box-shadow: 0 16px 28px rgba(15, 23, 42, 0.15);
+            border: 1px solid rgba(15, 23, 42, 0.35);
+        }
+
+        .top-nav .brand {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: 0.15rem;
+        }
+
+        .top-nav .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 0.95rem;
+        }
+
+        .logout-btn {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff;
+            border: none;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(220, 38, 38, 0.3);
+        }
+
         .container {
             background: var(--card-bg);
             border-radius: 18px;
@@ -568,10 +611,24 @@
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
+
+            .top-nav {
+                padding: 14px 16px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
         }
     </style>
 </head>
         <body>
+            <div class="top-nav">
+                <div class="brand">FORECASTERRR</div>
+                <div class="nav-right">
+                    <span class="welcome-text">Welcome, {{ username }}!</span>
+                    <button class="logout-btn" id="logoutBtn" type="button">Logout</button>
+                </div>
+            </div>
             <div class="container">
                 <h1>Market Price Forecast</h1>
                 <p class="subtitle">Search by ticker, choose asset type, upload a chart, and explore enriched forecasts for stocks or crypto.</p>
@@ -646,8 +703,13 @@
         const loader = document.getElementById('loader');
         const assetTypeSelect = document.getElementById('assetType');
         const marketCountrySelect = document.getElementById('marketCountry');
+        const logoutBtn = document.getElementById('logoutBtn');
         let searchDebounceId = null;
         let latestSearchTerm = '';
+
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', handleLogout);
+        }
 
         companySearchInput.addEventListener('input', handleCompanySearch);
         companySearchInput.addEventListener('focus', () => {
@@ -718,6 +780,10 @@
 
             try {
                 const response = await fetch(`/company_search?q=${encodeURIComponent(query)}`);
+                if (response.status === 401) {
+                    window.location.href = '/';
+                    return;
+                }
                 if (!response.ok) {
                     throw new Error('Search request failed');
                 }
@@ -1013,6 +1079,22 @@
             `;
         }
 
+        async function handleLogout() {
+            try {
+                await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            } finally {
+                window.location.href = '/';
+            }
+        }
+
         async function getForecast() {
             clearFormMessage();
             const marketCountry = document.getElementById('marketCountry').value;
@@ -1054,6 +1136,11 @@
 
                 loader.style.display = 'none';
                 resultDiv.style.display = 'block';
+
+                if (response.status === 401) {
+                    window.location.href = '/';
+                    return;
+                }
 
                 if (!response.ok) {
                     let errorMessage = `HTTP error! status: ${response.status}`;
