@@ -6,3 +6,6 @@ prophet
 Pillow
 holidays
 gunicorn
+requests
+fredapi
+vaderSentiment

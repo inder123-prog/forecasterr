@@ -10,6 +10,8 @@ import io
 import holidays as pyholidays # For public holidays
 import os
 
+from data_enrichment import build_enriched_dataset
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -80,8 +82,15 @@ def get_stock_data(ticker_symbol, period="5y"):
         return None
 
 # --- Model Training and Prediction Logic ---
-def train_and_forecast(data, days_to_forecast_daily, days_to_forecast_weekly, 
-                       image_trend_regressor=None, country_holidays='US'):
+def train_and_forecast(
+    data,
+    days_to_forecast_daily,
+    days_to_forecast_weekly,
+    image_trend_regressor=None,
+    country_holidays='US',
+    regressor_columns=None,
+    future_regressors=None
+):
     if data is None or data.empty or len(data) < 2: # Prophet needs at least 2 data points
         logger.warning("Not enough data to train Prophet model.")
         return None, None, None
@@ -92,6 +101,8 @@ def train_and_forecast(data, days_to_forecast_daily, days_to_forecast_weekly,
     holiday_years = list(range(min_hist_year, max_hist_year + 1))
     holidays_df = get_market_holidays(years=holiday_years, country=country_holidays)
 
+    data_to_fit = data.copy()
+
     model = Prophet(
         yearly_seasonality=True,
         weekly_seasonality=True,
@@ -100,16 +111,27 @@ def train_and_forecast(data, days_to_forecast_daily, days_to_forecast_weekly,
         holidays=holidays_df if not holidays_df.empty else None
     )
 
+    regressor_columns = regressor_columns or []
+
     if image_trend_regressor is not None and image_trend_regressor in ["up", "down", "neutral"]:
         if image_trend_regressor == "up": trend_value = 1
         elif image_trend_regressor == "down": trend_value = -1
         else: trend_value = 0
-        data['image_sentiment'] = trend_value
-        model.add_regressor('image_sentiment')
+        data_to_fit['image_sentiment'] = trend_value
+        if future_regressors is not None:
+            future_regressors = future_regressors.copy()
+            future_regressors['image_sentiment'] = trend_value
+        if 'image_sentiment' not in regressor_columns:
+            regressor_columns = regressor_columns + ['image_sentiment']
         logger.info(f"Prepared 'image_sentiment' regressor for fitting with value: {trend_value}")
-    
+
+    for reg_col in regressor_columns:
+        if reg_col not in data_to_fit.columns:
+            data_to_fit[reg_col] = 0.0
+        model.add_regressor(reg_col)
+
     try:
-        model.fit(data)
+        model.fit(data_to_fit)
     except Exception as e:
         logger.error(f"Error during model.fit: {e}", exc_info=True)
         return None, None, None
@@ -117,13 +139,33 @@ def train_and_forecast(data, days_to_forecast_daily, days_to_forecast_weekly,
     future_daily_df = model.make_future_dataframe(periods=days_to_forecast_daily)
     future_weekly_df = model.make_future_dataframe(periods=days_to_forecast_weekly)
 
-    if 'image_sentiment' in data.columns:
-        if image_trend_regressor == "up": future_trend_value = 1
-        elif image_trend_regressor == "down": future_trend_value = -1
-        else: future_trend_value = 0
-        if image_trend_regressor in ["up", "down", "neutral"]:
-            future_daily_df['image_sentiment'] = future_trend_value
-            future_weekly_df['image_sentiment'] = future_trend_value
+    if regressor_columns:
+        if future_regressors is None or future_regressors.empty:
+            logger.error("Future regressors are required when regressor columns are provided.")
+            return None, None, None
+
+        future_regressors_sorted = future_regressors.sort_values('ds')
+        regressor_cols_with_ds = ['ds'] + regressor_columns
+
+        future_daily_df = future_daily_df.merge(
+            future_regressors_sorted[regressor_cols_with_ds],
+            on='ds',
+            how='left'
+        )
+        future_weekly_df = future_weekly_df.merge(
+            future_regressors_sorted[regressor_cols_with_ds],
+            on='ds',
+            how='left'
+        )
+
+        for df in (future_daily_df, future_weekly_df):
+            df.sort_values('ds', inplace=True)
+            df[regressor_columns] = df[regressor_columns].ffill().bfill().fillna(0.0)
+
+    elif 'image_sentiment' in data_to_fit.columns:
+        future_trend_value = data_to_fit['image_sentiment'].iloc[-1]
+        future_daily_df['image_sentiment'] = future_trend_value
+        future_weekly_df['image_sentiment'] = future_trend_value
 
     try:
         forecast_daily = model.predict(future_daily_df)
@@ -185,19 +227,55 @@ def forecast_stock_with_image():
             logger.error(f"Failed to fetch historical data for {ticker_symbol}. Cannot proceed with forecast.")
             return jsonify({"error": f"Could not fetch historical data for {ticker_symbol}. It might be an invalid ticker or have no data."}), 404
 
-        current_price = stock_data_df['y'].iloc[-1]
-        last_date = stock_data_df['ds'].iloc[-1]
-
         # We need to forecast enough periods to find 3 trading days and 1 week trading day
         days_for_daily_forecast_periods = 10 
         days_for_week_ahead_periods = 15   
 
+        enrichment_payload = {
+            "training_df": stock_data_df.copy(),
+            "future_regressors": None,
+            "regressor_columns": [],
+            "news_highlights": [],
+            "news_sentiment_summary": {},
+            "macro_snapshot": {},
+            "fundamentals": {},
+            "price_diagnostics": {},
+            "has_macro_features": False,
+            "has_news_features": False
+        }
+        training_input_df = stock_data_df.copy()
+        regressor_columns = []
+        future_regressors = None
+
+        try:
+            built_enrichment = build_enriched_dataset(
+                ticker_symbol=ticker_symbol,
+                price_df=stock_data_df.copy(),
+                forecast_extension_days=max(days_for_daily_forecast_periods, days_for_week_ahead_periods) + 30,
+                market_country=market_country
+            )
+            enrichment_payload.update({
+                key: built_enrichment.get(key, enrichment_payload.get(key))
+                for key in enrichment_payload.keys()
+                if key in built_enrichment
+            })
+            training_input_df = built_enrichment.get("training_df", training_input_df)
+            regressor_columns = built_enrichment.get("regressor_columns", [])
+            future_regressors = built_enrichment.get("future_regressors")
+        except Exception as enrichment_error:
+            logger.error(f"Failed to build enrichment payload for {ticker_symbol}: {enrichment_error}", exc_info=True)
+
+        current_price = stock_data_df['y'].iloc[-1]
+        last_date = stock_data_df['ds'].iloc[-1]
+
         model, forecast_output_daily_df, forecast_output_weekly_df = train_and_forecast(
-            stock_data_df.copy(),
+            training_input_df.copy(),
             days_for_daily_forecast_periods,
             days_for_week_ahead_periods,
             image_trend_regressor=image_trend,
-            country_holidays=market_country
+            country_holidays=market_country,
+            regressor_columns=regressor_columns,
+            future_regressors=future_regressors
         )
 
         if forecast_output_daily_df is None or forecast_output_weekly_df is None :
@@ -271,14 +349,30 @@ def forecast_stock_with_image():
                     f"3-Day Forecast: {[(d['date'], d['price']) for d in three_day_forecast_results]}, "
                     f"Week Ahead Prediction ({week_ahead_pred_details.get('date', 'N/A')}): ${week_ahead_price_display}")
 
-        return jsonify({
+        regressor_columns_for_response = list(regressor_columns)
+        if image_trend in ["up", "down", "neutral"] and 'image_sentiment' not in regressor_columns_for_response:
+            regressor_columns_for_response.append('image_sentiment')
+
+        response_payload = {
             "ticker": ticker_symbol,
             "current_price": current_price_display if current_price_display != "N/A" else None, # Send None if N/A for JS
             "last_known_date": last_date_display,
             "image_analysis_sentiment": image_sentiment_for_response,
             "three_day_forecast": three_day_forecast_results,
-            "forecast_week_ahead": week_ahead_pred_details
-        })
+            "forecast_week_ahead": week_ahead_pred_details,
+            "price_diagnostics": enrichment_payload.get("price_diagnostics", {}),
+            "macro_snapshot": enrichment_payload.get("macro_snapshot", {}),
+            "news_sentiment_summary": enrichment_payload.get("news_sentiment_summary", {}),
+            "news_highlights": enrichment_payload.get("news_highlights", []),
+            "fundamentals": enrichment_payload.get("fundamentals", {}),
+            "feature_flags": {
+                "macro": enrichment_payload.get("has_macro_features", False),
+                "news": enrichment_payload.get("has_news_features", False)
+            },
+            "model_regressors": regressor_columns_for_response
+        }
+
+        return jsonify(response_payload)
 
     except Exception as e:
         # Log crucial variables at the point of error

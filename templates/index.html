@@ -68,6 +68,46 @@
             return `${prefix}${value}${suffix}`;
         }
 
+          function formatMetric(value, decimals = 2) {
+              if (value === null || value === undefined || value === "N/A" || Number.isNaN(Number(value))) {
+                  return "N/A";
+              }
+              const numericValue = Number(value);
+              return numericValue.toLocaleString(undefined, {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: decimals
+              });
+          }
+
+          function formatPercentFromDecimal(value, decimals = 2) {
+              if (value === null || value === undefined || value === "N/A" || Number.isNaN(Number(value))) {
+                  return "N/A";
+              }
+              const numericValue = Number(value) * 100;
+              return `${numericValue.toFixed(decimals)}%`;
+          }
+
+          function formatLabel(label) {
+              return label
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, char => char.toUpperCase());
+          }
+
+          function formatDateTime(value) {
+              if (!value) {
+                  return "N/A";
+              }
+              try {
+                  const date = new Date(value);
+                  if (Number.isNaN(date.getTime())) {
+                      return value;
+                  }
+                  return date.toLocaleString();
+              } catch (error) {
+                  return value;
+              }
+          }
+
         async function getForecast() {
             const ticker = document.getElementById('ticker').value.toUpperCase();
             const imageFile = document.getElementById('chartImage').files[0];
@@ -155,13 +195,129 @@
                      weekAheadForecastHtml = '<hr><h3>Week Ahead Forecast:</h3><p>Week ahead forecast data not available.</p>';
                 }
 
+                  const priceDiagnostics = data.price_diagnostics || {};
+                  let priceDiagnosticsHtml = '';
+                  if (Object.keys(priceDiagnostics).length > 0) {
+                      priceDiagnosticsHtml = `
+                          <hr>
+                          <h3>Price Diagnostics</h3>
+                          <ul>
+                              <li><strong>Latest Close:</strong> ${displayValue(priceDiagnostics.latest_close)}</li>
+                              <li><strong>Daily Volatility:</strong> ${formatPercentFromDecimal(priceDiagnostics.daily_volatility)}</li>
+                              <li><strong>1-Month Return:</strong> ${formatPercentFromDecimal(priceDiagnostics.monthly_return)}</li>
+                              <li><strong>1-Quarter Return:</strong> ${formatPercentFromDecimal(priceDiagnostics.quarter_return)}</li>
+                              <li><strong>5th Percentile Price:</strong> ${displayValue(priceDiagnostics.fifth_percentile)}</li>
+                              <li><strong>95th Percentile Price:</strong> ${displayValue(priceDiagnostics.ninety_fifth_percentile)}</li>
+                          </ul>
+                      `;
+                  }
+
+                  const macroSnapshot = data.macro_snapshot || {};
+                  let macroSnapshotHtml = '';
+                  if (Object.keys(macroSnapshot).length > 0) {
+                      const macroItems = Object.entries(macroSnapshot)
+                          .map(([key, value]) => `<li><strong>${formatLabel(key)}:</strong> ${formatMetric(value)}</li>`)
+                          .join('');
+                      macroSnapshotHtml = `
+                          <hr>
+                          <h3>Macro Environment Snapshot</h3>
+                          <ul>${macroItems}</ul>
+                      `;
+                  }
+
+                  const fundamentals = data.fundamentals || {};
+                  let fundamentalsHtml = '';
+                  const fundamentalKeys = ["trailing_pe", "forward_pe", "peg_ratio", "price_to_book", "dividend_yield", "market_cap", "beta"];
+                  const fundamentalsList = fundamentalKeys
+                      .filter(key => fundamentals[key] !== undefined && fundamentals[key] !== null)
+                      .map(key => {
+                          const formattedValue = key === "dividend_yield"
+                              ? formatPercentFromDecimal(fundamentals[key])
+                              : formatMetric(fundamentals[key]);
+                          return `<li><strong>${formatLabel(key)}:</strong> ${formattedValue}</li>`;
+                      });
+                  if (fundamentalsList.length > 0) {
+                      fundamentalsHtml = `
+                          <hr>
+                          <h3>Fundamental Snapshot</h3>
+                          <ul>${fundamentalsList.join('')}</ul>
+                      `;
+                  }
+
+                  const newsSummary = data.news_sentiment_summary || {};
+                  let newsSummaryHtml = '';
+                  if (Object.keys(newsSummary).length > 0) {
+                      const summaryItems = Object.entries(newsSummary)
+                          .map(([key, value]) => {
+                              if (typeof value === 'number' && !Number.isNaN(value)) {
+                                  const isCount = key.toLowerCase().includes('count');
+                                  const formatted = isCount ? formatMetric(value, 0) : formatMetric(value, 3);
+                                  return `<li><strong>${formatLabel(key)}:</strong> ${formatted}</li>`;
+                              }
+                              return `<li><strong>${formatLabel(key)}:</strong> ${value}</li>`;
+                          })
+                          .join('');
+                      newsSummaryHtml = `
+                          <hr>
+                          <h3>News Sentiment Summary (7-day)</h3>
+                          <ul>${summaryItems}</ul>
+                      `;
+                  }
+
+                  const newsHighlights = Array.isArray(data.news_highlights) ? data.news_highlights.slice(0, 5) : [];
+                  let newsHighlightsHtml = '';
+                  if (newsHighlights.length > 0) {
+                      const highlightsList = newsHighlights
+                          .map(item => `
+                              <li>
+                                  <strong>${item.headline || 'Untitled'}</strong>
+                                  <div>Published: ${formatDateTime(item.published)}</div>
+                                  <div>Sentiment: ${formatMetric(item.sentiment, 3)}</div>
+                                  <div>Categories: ${item.categories && item.categories.length ? item.categories.join(', ') : 'General'}</div>
+                                  ${item.url ? `<div><a href="${item.url}" target="_blank" rel="noopener">Read Article</a></div>` : ''}
+                              </li>
+                          `)
+                          .join('');
+                      newsHighlightsHtml = `
+                          <hr>
+                          <h3>Latest Relevant News</h3>
+                          <ul>${highlightsList}</ul>
+                      `;
+                  }
+
+                  const modelRegressors = Array.isArray(data.model_regressors) ? data.model_regressors : [];
+                  let modelRegressorsHtml = '';
+                  if (modelRegressors.length > 0) {
+                      modelRegressorsHtml = `
+                          <hr>
+                          <h3>Model Feature Inputs</h3>
+                          <p>Prophet regressors considered in this forecast:</p>
+                          <p>${modelRegressors.map(formatLabel).join(', ')}</p>
+                      `;
+                  }
+
+                  let featureFlagsHtml = '';
+                  if (data.feature_flags) {
+                      featureFlagsHtml = `
+                          <p><strong>Macro Data Activated:</strong> ${data.feature_flags.macro ? 'Yes' : 'No'}</p>
+                          <p><strong>News Sentiment Activated:</strong> ${data.feature_flags.news ? 'Yes' : 'No'}</p>
+                      `;
+                  }
+
                 resultDiv.innerHTML = `
                     <h2>Forecast for ${data.ticker || 'N/A'}</h2>
                     <p><strong>Current Price (as of ${data.last_known_date || 'N/A'}):</strong> ${displayValue(data.current_price)}</p>
                     ${imageAnalysisHtml}
+                      ${featureFlagsHtml}
                     <hr>
                     ${threeDayForecastHtml}
                     ${weekAheadForecastHtml}
+                      ${priceDiagnosticsHtml}
+                      ${macroSnapshotHtml}
+                      ${fundamentalsHtml}
+                      ${newsSummaryHtml}
+                      ${newsHighlightsHtml}
+                      ${modelRegressorsHtml}
                 `;
 
             } catch (error) {
