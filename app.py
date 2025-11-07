@@ -9,6 +9,7 @@ from PIL import Image
 import io
 import holidays as pyholidays # For public holidays
 import os
+import requests
 
 from data_enrichment import build_enriched_dataset
 
@@ -384,6 +385,57 @@ def forecast_stock_with_image():
 
         logger.error(f"Error in /forecast_with_image endpoint for ticker '{current_ticker_on_error}' (image_trend state: {current_image_trend_on_error}): {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred. Please check logs."}), 500
+
+def search_companies_by_query(query, region='US', lang='en-US', max_results=6):
+    search_url = "https://query1.finance.yahoo.com/v1/finance/search"
+    params = {
+        "q": query,
+        "lang": lang,
+        "region": region,
+        "quotesCount": max_results,
+        "newsCount": 0
+    }
+    response = requests.get(search_url, params=params, timeout=5)
+    response.raise_for_status()
+    payload = response.json()
+
+    results = []
+    for quote in payload.get("quotes", []):
+        symbol = quote.get("symbol")
+        if not symbol:
+            continue
+        results.append({
+            "symbol": symbol,
+            "name": quote.get("shortname") or quote.get("longname") or quote.get("name") or symbol,
+            "exchange": quote.get("exchangeDisplay") or quote.get("fullExchangeName"),
+            "assetType": quote.get("typeDisp") or quote.get("quoteType"),
+            "sector": quote.get("sector"),
+            "industry": quote.get("industry"),
+        })
+        if len(results) >= max_results:
+            break
+    return results
+
+@app.route('/company_search')
+def company_search():
+    query = request.args.get('q', '').strip()
+    if not query or len(query) < 2:
+        return jsonify({"results": []})
+    region = request.args.get('region', 'US')
+    lang = request.args.get('lang', 'en-US')
+    try:
+        matches = search_companies_by_query(query, region=region, lang=lang)
+        return jsonify({"results": matches})
+    except requests.exceptions.HTTPError as http_err:
+        status_code = http_err.response.status_code if http_err.response else 500
+        logger.error(f"Yahoo Finance search HTTP error ({status_code}) for query '{query}': {http_err}")
+        return jsonify({"error": "Upstream search service error.", "results": []}), status_code
+    except requests.exceptions.RequestException as req_err:
+        logger.error(f"Network error querying Yahoo Finance search for '{query}': {req_err}")
+        return jsonify({"error": "Failed to reach search service.", "results": []}), 503
+    except Exception as exc:
+        logger.error(f"Unexpected error during company search for '{query}': {exc}", exc_info=True)
+        return jsonify({"error": "Internal error while searching companies.", "results": []}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))

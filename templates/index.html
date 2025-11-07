@@ -5,124 +5,638 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Forecast Demo</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 700px; margin: auto;}
-        h1 { color: #333; text-align: center; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], select { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        input[type="file"] { display: block; margin-top: 10px; margin-bottom: 20px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-        button {
-            background-color: #007bff; color: white; padding: 10px 15px; border: none;
-            border-radius: 4px; cursor: pointer; font-size: 16px; display: block; width: 100%;
+        :root {
+            --primary: #0d6efd;
+            --primary-dark: #0a58ca;
+            --border: #d0d7de;
+            --background: #f2f5f9;
+            --card-bg: #ffffff;
+            --text-main: #20263c;
+            --text-muted: #5f6b7a;
+            --shadow: 0 20px 32px rgba(15, 23, 42, 0.08);
         }
-        button:hover { background-color: #0056b3; }
-        .results { margin-top: 20px; padding: 15px; border: 1px solid #eee; border-radius: 4px; background-color: #f9f9f9;}
-        .results h2 { margin-top: 0; color: #007bff; }
-        .results p { margin: 8px 0; }
-        .recommendation { font-weight: bold; }
-        .buy { color: green; }
-        .sell { color: red; }
-        .neutral { color: orange; }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            margin: 0;
+            padding: 24px;
+            background: var(--background);
+            color: var(--text-main);
+        }
+
+        .container {
+            background: var(--card-bg);
+            border-radius: 18px;
+            padding: 32px;
+            max-width: 880px;
+            margin: auto;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(220, 224, 230, 0.6);
+        }
+
+        h1 {
+            margin-top: 0;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 28px;
+            font-size: 1rem;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            margin-bottom: 10px;
+        }
+
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .field-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .input-shell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+        }
+
+        .input-shell:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
+            background: #fff;
+        }
+
+        .input-shell input,
+        .input-shell select {
+            border: none;
+            background: transparent;
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 1rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        select {
+            appearance: none;
+        }
+
+        .helper-text {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        input[type="file"] {
+            font-size: 0.95rem;
+            color: var(--text-main);
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        input[type="file"]:hover {
+            border-color: var(--primary);
+            background: rgba(13, 110, 253, 0.04);
+        }
+
+        button.primary-action {
+            background: linear-gradient(135deg, var(--primary), #4c8ffd);
+            color: #fff;
+            padding: 14px 18px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        button.primary-action:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(13, 110, 253, 0.25);
+        }
+
+        button.primary-action:active {
+            transform: translateY(0);
+        }
+
+        .form-message {
+            display: none;
+            margin: 16px 0 8px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            font-weight: 500;
+        }
+
+        .form-message.error {
+            display: block;
+            color: #8b2121;
+            background: #ffeaea;
+            border-color: #f7c2c2;
+        }
+
+        .form-message.info {
+            display: block;
+            color: #0c5460;
+            background: #d1ecf1;
+            border-color: #bee5eb;
+        }
+
         .loader {
-            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
-            border-radius: 50%; width: 40px; height: 40px;
-            animation: spin 1s linear infinite; margin: 20px auto; display: none;
+            border: 5px solid #e2e8f0;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            animation: spin 1s linear infinite;
+            margin: 30px auto;
+            display: none;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .error { color: red; font-weight: bold; }
-        .daily-forecast-day { border: 1px solid #e0e0e0; padding: 10px; margin-bottom: 10px; border-radius: 4px; background-color: #fdfdfd; }
-        .daily-forecast-day h4 { margin-top: 0; margin-bottom: 5px; color: #555; }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 24px 26px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid rgba(220, 224, 230, 0.7);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+            display: none;
+        }
+
+        .results h2 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .results section {
+            margin-top: 20px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary);
+            padding-left: 10px;
+            color: var(--text-main);
+        }
+
+        .daily-forecast-day {
+            border: 1px solid rgba(221, 226, 233, 0.8);
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef3ff 100%);
+            margin-bottom: 12px;
+        }
+
+        .daily-forecast-day h4 {
+            margin: 0 0 8px;
+            color: #2f3c56;
+            font-size: 1rem;
+        }
+
+        .recommendation {
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        .recommendation.buy { color: #0f9d58; }
+        .recommendation.sell { color: #d93025; }
+        .recommendation.neutral { color: #f4b400; }
+
+        .highlight-card {
+            border: 1px solid rgba(221, 226, 233, 0.9);
+            border-radius: 14px;
+            padding: 16px 18px;
+            background: #f9fbff;
+            margin-bottom: 16px;
+        }
+
+        .highlight-card ul {
+            margin: 12px 0 0 0;
+            padding-left: 18px;
+        }
+
+        .highlight-card li {
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+
+        .news-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 14px;
+        }
+
+        .news-list li {
+            border: 1px solid rgba(223, 228, 236, 0.9);
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+        }
+
+        .news-list a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .news-list a:hover {
+            text-decoration: underline;
+        }
+
+        .search-wrapper {
+            position: relative;
+        }
+
+        .search-results {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid rgba(210, 220, 235, 0.9);
+            box-shadow: 0 18px 30px rgba(15, 23, 42, 0.12);
+            max-height: 280px;
+            overflow-y: auto;
+            padding: 6px;
+            display: none;
+            z-index: 20;
+        }
+
+        .search-results.visible {
+            display: block;
+        }
+
+        .search-result {
+            width: 100%;
+            border: none;
+            background: none;
+            text-align: left;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: grid;
+            row-gap: 2px;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .search-result:hover,
+        .search-result:focus {
+            background: rgba(13, 110, 253, 0.08);
+            transform: translateY(-1px);
+            outline: none;
+        }
+
+        .search-result .result-symbol {
+            font-weight: 700;
+            color: var(--text-main);
+            font-size: 0.95rem;
+        }
+
+        .search-result .result-name {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .search-result .result-meta {
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+
+        .search-result.empty,
+        .search-result.error {
+            cursor: default;
+            background: #f8fafc;
+            color: var(--text-muted);
+            transform: none;
+        }
+
+        .search-result.empty:hover,
+        .search-result.error:hover {
+            background: #f8fafc;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 16px;
+            }
+
+            .container {
+                padding: 24px 20px;
+                border-radius: 14px;
+            }
+
+            h1 {
+                font-size: 1.7rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Stock Price Forecast</h1>
-        <label for="ticker">Enter Stock Ticker (e.g., AAPL, MSFT):</label>
-        <input type="text" id="ticker" name="ticker" placeholder="AAPL">
+        <p class="subtitle">Search by company name or ticker, upload a chart, and explore enriched forecasts.</p>
 
-        <label for="marketCountry">Market (for Holidays):</label>
-        <select id="marketCountry" name="marketCountry">
-            <option value="US" selected>United States (US)</option>
-            <option value="CA">Canada (CA)</option>
-            <option value="GB">United Kingdom (GB)</option>
-            <option value="DE">Germany (DE)</option>
-            <option value="IN">India (IN)</option>
-        </select>
+        <div class="form-grid">
+            <div class="field-group">
+                <label for="companySearch">Search Company</label>
+                <div class="input-shell search-wrapper">
+                    <input type="text" id="companySearch" name="companySearch" placeholder="Type company name, e.g., Apple" autocomplete="off">
+                    <div id="searchResults" class="search-results"></div>
+                </div>
+                <span class="helper-text">Start typing to see matching companies and tickers.</span>
+            </div>
 
-        <label for="chartImage">Upload Stock Chart Screenshot (Optional):</label>
-        <input type="file" id="chartImage" name="chartImage" accept="image/*">
+            <div class="field-group">
+                <label for="ticker">Selected Ticker</label>
+                <div class="input-shell">
+                    <input type="text" id="ticker" name="ticker" placeholder="AAPL">
+                </div>
+                <span class="helper-text">Auto-filled from search, or enter a symbol manually.</span>
+            </div>
 
-        <button onclick="getForecast()">Get Forecast</button>
+            <div class="field-group">
+                <label for="marketCountry">Market (for Holidays)</label>
+                <div class="input-shell">
+                    <select id="marketCountry" name="marketCountry">
+                        <option value="US" selected>United States (US)</option>
+                        <option value="CA">Canada (CA)</option>
+                        <option value="GB">United Kingdom (GB)</option>
+                        <option value="DE">Germany (DE)</option>
+                        <option value="IN">India (IN)</option>
+                    </select>
+                </div>
+                <span class="helper-text">Used to apply holiday calendars during forecasting.</span>
+            </div>
+
+            <div class="field-group">
+                <label for="chartImage">Upload Stock Chart (Optional)</label>
+                <input type="file" id="chartImage" name="chartImage" accept="image/*">
+                <span class="helper-text">Supported formats: PNG, JPG, GIF (max 5 MB recommended).</span>
+            </div>
+        </div>
+
+        <div id="formMessage" class="form-message"></div>
+
+        <button class="primary-action" onclick="getForecast()">Generate Forecast</button>
 
         <div class="loader" id="loader"></div>
-        <div id="forecastResult" class="results" style="display:none;">
+        <div id="forecastResult" class="results">
             <!-- Results will be injected here -->
         </div>
     </div>
 
     <script>
-        function displayValue(value, prefix = "$", suffix = "") {
-            if (value === null || value === undefined || value === "N/A" || value === "undefined") {
-                return "N/A";
+        const searchResultsContainer = document.getElementById('searchResults');
+        const companySearchInput = document.getElementById('companySearch');
+        const tickerInput = document.getElementById('ticker');
+        const formMessage = document.getElementById('formMessage');
+        const resultDiv = document.getElementById('forecastResult');
+        const loader = document.getElementById('loader');
+        let searchDebounceId = null;
+        let latestSearchTerm = '';
+
+        companySearchInput.addEventListener('input', handleCompanySearch);
+        companySearchInput.addEventListener('focus', () => {
+            if (searchResultsContainer.childElementCount > 0) {
+                searchResultsContainer.classList.add('visible');
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!searchResultsContainer.contains(event.target) && event.target !== companySearchInput) {
+                clearSearchResults();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                clearSearchResults();
+                companySearchInput.blur();
+            }
+        });
+
+        function handleCompanySearch(event) {
+            clearFormMessage();
+            const query = event.target.value.trim();
+            if (searchDebounceId) {
+                clearTimeout(searchDebounceId);
+            }
+            if (query.length === 0) {
+                tickerInput.value = '';
+                clearSearchResults();
+                return;
+            }
+            if (query.length < 2) {
+                clearSearchResults();
+                return;
+            }
+            searchDebounceId = setTimeout(() => fetchCompanyMatches(query), 250);
+        }
+
+        async function fetchCompanyMatches(query) {
+            latestSearchTerm = query;
+            searchResultsContainer.innerHTML = '';
+            const loadingRow = document.createElement('div');
+            loadingRow.className = 'search-result empty';
+            loadingRow.textContent = 'Searching...';
+            searchResultsContainer.appendChild(loadingRow);
+            searchResultsContainer.classList.add('visible');
+
+            try {
+                const response = await fetch(`/company_search?q=${encodeURIComponent(query)}`);
+                if (!response.ok) {
+                    throw new Error('Search request failed');
+                }
+                const data = await response.json();
+                if (latestSearchTerm !== query) {
+                    return;
+                }
+                renderSearchResults(Array.isArray(data.results) ? data.results : []);
+            } catch (error) {
+                if (latestSearchTerm !== query) {
+                    return;
+                }
+                searchResultsContainer.innerHTML = '';
+                const errorRow = document.createElement('div');
+                errorRow.className = 'search-result error';
+                errorRow.textContent = 'Unable to fetch suggestions right now.';
+                searchResultsContainer.appendChild(errorRow);
+                searchResultsContainer.classList.add('visible');
+                console.error('Company search error:', error);
+            }
+        }
+
+        function renderSearchResults(results) {
+            searchResultsContainer.innerHTML = '';
+            if (!results.length) {
+                const emptyRow = document.createElement('div');
+                emptyRow.className = 'search-result empty';
+                emptyRow.textContent = 'No matching companies found.';
+                searchResultsContainer.appendChild(emptyRow);
+                searchResultsContainer.classList.add('visible');
+                return;
+            }
+
+            results.forEach((result) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'search-result';
+                const symbol = result.symbol || '';
+                const name = result.name || symbol;
+                const metaParts = [result.exchange, result.assetType, result.sector].filter(Boolean);
+
+                button.innerHTML = `
+                    <span class="result-symbol">${symbol}</span>
+                    <span class="result-name">${name}</span>
+                    <span class="result-meta">${metaParts.join(' • ')}</span>
+                `;
+                button.addEventListener('click', () => selectCompanyResult(result));
+                searchResultsContainer.appendChild(button);
+            });
+
+            searchResultsContainer.classList.add('visible');
+        }
+
+        function selectCompanyResult(result) {
+            const symbol = (result.symbol || '').toUpperCase();
+            const displayName = result.name ? `${result.name} (${symbol})` : symbol;
+            companySearchInput.value = displayName;
+            tickerInput.value = symbol;
+            clearSearchResults();
+        }
+
+        function clearSearchResults() {
+            searchResultsContainer.innerHTML = '';
+            searchResultsContainer.classList.remove('visible');
+        }
+
+        function showFormMessage(message, type = 'error') {
+            if (!message) {
+                formMessage.style.display = 'none';
+                formMessage.textContent = '';
+                formMessage.className = 'form-message';
+                return;
+            }
+            formMessage.textContent = message;
+            formMessage.className = `form-message ${type}`;
+            formMessage.style.display = 'block';
+        }
+
+        function clearFormMessage() {
+            showFormMessage('');
+        }
+
+        function displayValue(value, prefix = '$', suffix = '') {
+            if (value === null || value === undefined || value === 'N/A' || value === 'undefined') {
+                return 'N/A';
             }
             return `${prefix}${value}${suffix}`;
         }
 
-          function formatMetric(value, decimals = 2) {
-              if (value === null || value === undefined || value === "N/A" || Number.isNaN(Number(value))) {
-                  return "N/A";
-              }
-              const numericValue = Number(value);
-              return numericValue.toLocaleString(undefined, {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: decimals
-              });
-          }
+        function formatMetric(value, decimals = 2) {
+            if (value === null || value === undefined || value === 'N/A' || Number.isNaN(Number(value))) {
+                return 'N/A';
+            }
+            const numericValue = Number(value);
+            return numericValue.toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: decimals
+            });
+        }
 
-          function formatPercentFromDecimal(value, decimals = 2) {
-              if (value === null || value === undefined || value === "N/A" || Number.isNaN(Number(value))) {
-                  return "N/A";
-              }
-              const numericValue = Number(value) * 100;
-              return `${numericValue.toFixed(decimals)}%`;
-          }
+        function formatPercentFromDecimal(value, decimals = 2) {
+            if (value === null || value === undefined || value === 'N/A' || Number.isNaN(Number(value))) {
+                return 'N/A';
+            }
+            const numericValue = Number(value) * 100;
+            return `${numericValue.toFixed(decimals)}%`;
+        }
 
-          function formatLabel(label) {
-              return label
-                  .replace(/_/g, " ")
-                  .replace(/\b\w/g, char => char.toUpperCase());
-          }
+        function formatLabel(label) {
+            return label
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (char) => char.toUpperCase());
+        }
 
-          function formatDateTime(value) {
-              if (!value) {
-                  return "N/A";
-              }
-              try {
-                  const date = new Date(value);
-                  if (Number.isNaN(date.getTime())) {
-                      return value;
-                  }
-                  return date.toLocaleString();
-              } catch (error) {
-                  return value;
-              }
-          }
+        function formatDateTime(value) {
+            if (!value) {
+                return 'N/A';
+            }
+            try {
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+                return date.toLocaleString();
+            } catch (error) {
+                return value;
+            }
+        }
 
         async function getForecast() {
-            const ticker = document.getElementById('ticker').value.toUpperCase();
-            const imageFile = document.getElementById('chartImage').files[0];
+            clearFormMessage();
             const marketCountry = document.getElementById('marketCountry').value;
-            const resultDiv = document.getElementById('forecastResult');
-            const loader = document.getElementById('loader');
+            const imageFile = document.getElementById('chartImage').files[0];
 
+            let ticker = tickerInput.value.trim().toUpperCase();
             if (!ticker) {
-                resultDiv.innerHTML = '<p class="error">Please enter a stock ticker.</p>';
-                resultDiv.style.display = 'block';
-                return;
+                const fromSearch = companySearchInput.value.trim();
+                const match = fromSearch.match(/\(([^)]+)\)$/);
+                if (match && match[1]) {
+                    ticker = match[1].toUpperCase();
+                    tickerInput.value = ticker;
+                }
             }
 
-            resultDiv.style.display = 'none';
-            loader.style.display = 'block';
+            if (!ticker) {
+                showFormMessage('Please choose a company from search results or enter a ticker symbol.', 'error');
+                resultDiv.style.display = 'none';
+                return;
+            }
 
             const formData = new FormData();
             formData.append('ticker', ticker);
@@ -131,10 +645,13 @@
                 formData.append('chartImage', imageFile);
             }
 
+            resultDiv.style.display = 'none';
+            loader.style.display = 'block';
+
             try {
-                const response = await fetch('http://localhost:5001/forecast_with_image', {
+                const response = await fetch('/forecast_with_image', {
                     method: 'POST',
-                    body: formData,
+                    body: formData
                 });
 
                 loader.style.display = 'none';
@@ -144,31 +661,34 @@
                     let errorMessage = `HTTP error! status: ${response.status}`;
                     try {
                         const errorData = await response.json();
-                        errorMessage = errorData.error ? errorData.error : `Server error, please check logs.`;
+                        errorMessage = errorData.error ? errorData.error : 'Server error, please check logs.';
                     } catch (e) {
                         const errorText = await response.text();
-                        errorMessage = errorText ? errorText.substring(0, 300) : `Server error, response not JSON.`;
+                        errorMessage = errorText ? errorText.substring(0, 300) : 'Server error, response not JSON.';
                     }
-                    throw new Error(errorMessage);
+                    showFormMessage(errorMessage, 'error');
+                    return;
                 }
 
+                clearFormMessage();
                 const data = await response.json();
 
                 let imageAnalysisHtml = '';
-                if (data.image_analysis_sentiment && data.image_analysis_sentiment !== "Not Provided") {
+                if (data.image_analysis_sentiment && data.image_analysis_sentiment !== 'Not Provided') {
                     imageAnalysisHtml = `<p><strong>Chart Image Sentiment:</strong> ${data.image_analysis_sentiment}</p>`;
                 }
 
-                let threeDayForecastHtml = '<h3>Next 3 Days Forecast:</h3>';
+                let threeDayForecastHtml = '<section><h3 class="section-title">Next 3 Trading Days</h3>';
                 if (data.three_day_forecast && data.three_day_forecast.length > 0) {
-                    data.three_day_forecast.forEach(dayForecast => {
+                    data.three_day_forecast.forEach((dayForecast) => {
                         let recClass = 'neutral';
-                        if (dayForecast.recommendation.toLowerCase().includes('buy')) recClass = 'buy';
-                        if (dayForecast.recommendation.toLowerCase().includes('sell')) recClass = 'sell';
+                        const recommendation = (dayForecast.recommendation || '').toLowerCase();
+                        if (recommendation.includes('buy')) recClass = 'buy';
+                        if (recommendation.includes('sell')) recClass = 'sell';
 
                         threeDayForecastHtml += `
                             <div class="daily-forecast-day">
-                                <h4>Forecast for ${dayForecast.date || 'N/A'}:</h4>
+                                <h4>${dayForecast.date || 'N/A'}</h4>
                                 <p><strong>Predicted Price:</strong> ${displayValue(dayForecast.price)}</p>
                                 <p><em>Confidence Interval:</em> ${displayValue(dayForecast.lower_bound)} - ${displayValue(dayForecast.upper_bound)}</p>
                                 <p><strong>Recommendation:</strong> <span class="recommendation ${recClass}">${dayForecast.recommendation || 'N/A'}</span></p>
@@ -176,154 +696,177 @@
                         `;
                     });
                 } else {
-                    threeDayForecastHtml += '<p>Daily forecast data not available.</p>';
+                    threeDayForecastHtml += '<p class="helper-text">Daily forecast data not available.</p>';
                 }
+                threeDayForecastHtml += '</section>';
 
-                let weekAheadForecastHtml = '';
-                if (data.forecast_week_ahead && data.forecast_week_ahead.price !== "N/A") {
+                let weekAheadForecastHtml = '<section><h3 class="section-title">Week Ahead Forecast</h3>';
+                if (data.forecast_week_ahead && data.forecast_week_ahead.price !== 'N/A') {
                     let weekRecClass = 'neutral';
-                    if (data.forecast_week_ahead.recommendation.toLowerCase().includes('buy')) weekRecClass = 'buy';
-                    if (data.forecast_week_ahead.recommendation.toLowerCase().includes('sell')) weekRecClass = 'sell';
-                    weekAheadForecastHtml = `
-                        <hr>
-                        <h3>Week Ahead Forecast (for ${data.forecast_week_ahead.date || 'N/A'}):</h3>
-                        <p><strong>Predicted Price:</strong> ${displayValue(data.forecast_week_ahead.price)}</p>
-                        <p><em>Confidence Interval:</em> ${displayValue(data.forecast_week_ahead.lower_bound)} - ${displayValue(data.forecast_week_ahead.upper_bound)}</p>
-                        <p><strong>Recommendation:</strong> <span class="recommendation ${weekRecClass}">${data.forecast_week_ahead.recommendation || 'N/A'}</span></p>
+                    const weekRec = (data.forecast_week_ahead.recommendation || '').toLowerCase();
+                    if (weekRec.includes('buy')) weekRecClass = 'buy';
+                    if (weekRec.includes('sell')) weekRecClass = 'sell';
+                    weekAheadForecastHtml += `
+                        <div class="highlight-card">
+                            <p><strong>Target Date:</strong> ${data.forecast_week_ahead.date || 'N/A'}</p>
+                            <p><strong>Predicted Price:</strong> ${displayValue(data.forecast_week_ahead.price)}</p>
+                            <p><em>Confidence Interval:</em> ${displayValue(data.forecast_week_ahead.lower_bound)} - ${displayValue(data.forecast_week_ahead.upper_bound)}</p>
+                            <p><strong>Recommendation:</strong> <span class="recommendation ${weekRecClass}">${data.forecast_week_ahead.recommendation || 'N/A'}</span></p>
+                        </div>
                     `;
                 } else {
-                     weekAheadForecastHtml = '<hr><h3>Week Ahead Forecast:</h3><p>Week ahead forecast data not available.</p>';
+                    weekAheadForecastHtml += '<p class="helper-text">Week ahead forecast data not available.</p>';
+                }
+                weekAheadForecastHtml += '</section>';
+
+                const priceDiagnostics = data.price_diagnostics || {};
+                let priceDiagnosticsHtml = '';
+                if (Object.keys(priceDiagnostics).length > 0) {
+                    priceDiagnosticsHtml = `
+                        <section>
+                            <h3 class="section-title">Price Diagnostics</h3>
+                            <div class="highlight-card">
+                                <ul>
+                                    <li><strong>Latest Close:</strong> ${displayValue(priceDiagnostics.latest_close)}</li>
+                                    <li><strong>Daily Volatility:</strong> ${formatPercentFromDecimal(priceDiagnostics.daily_volatility)}</li>
+                                    <li><strong>1-Month Return:</strong> ${formatPercentFromDecimal(priceDiagnostics.monthly_return)}</li>
+                                    <li><strong>1-Quarter Return:</strong> ${formatPercentFromDecimal(priceDiagnostics.quarter_return)}</li>
+                                    <li><strong>5th Percentile Price:</strong> ${displayValue(priceDiagnostics.fifth_percentile)}</li>
+                                    <li><strong>95th Percentile Price:</strong> ${displayValue(priceDiagnostics.ninety_fifth_percentile)}</li>
+                                </ul>
+                            </div>
+                        </section>
+                    `;
                 }
 
-                  const priceDiagnostics = data.price_diagnostics || {};
-                  let priceDiagnosticsHtml = '';
-                  if (Object.keys(priceDiagnostics).length > 0) {
-                      priceDiagnosticsHtml = `
-                          <hr>
-                          <h3>Price Diagnostics</h3>
-                          <ul>
-                              <li><strong>Latest Close:</strong> ${displayValue(priceDiagnostics.latest_close)}</li>
-                              <li><strong>Daily Volatility:</strong> ${formatPercentFromDecimal(priceDiagnostics.daily_volatility)}</li>
-                              <li><strong>1-Month Return:</strong> ${formatPercentFromDecimal(priceDiagnostics.monthly_return)}</li>
-                              <li><strong>1-Quarter Return:</strong> ${formatPercentFromDecimal(priceDiagnostics.quarter_return)}</li>
-                              <li><strong>5th Percentile Price:</strong> ${displayValue(priceDiagnostics.fifth_percentile)}</li>
-                              <li><strong>95th Percentile Price:</strong> ${displayValue(priceDiagnostics.ninety_fifth_percentile)}</li>
-                          </ul>
-                      `;
-                  }
+                const macroSnapshot = data.macro_snapshot || {};
+                let macroSnapshotHtml = '';
+                if (Object.keys(macroSnapshot).length > 0) {
+                    const macroItems = Object.entries(macroSnapshot)
+                        .map(([key, value]) => `<li><strong>${formatLabel(key)}:</strong> ${formatMetric(value)}</li>`)
+                        .join('');
+                    macroSnapshotHtml = `
+                        <section>
+                            <h3 class="section-title">Macro Environment Snapshot</h3>
+                            <div class="highlight-card">
+                                <ul>${macroItems}</ul>
+                            </div>
+                        </section>
+                    `;
+                }
 
-                  const macroSnapshot = data.macro_snapshot || {};
-                  let macroSnapshotHtml = '';
-                  if (Object.keys(macroSnapshot).length > 0) {
-                      const macroItems = Object.entries(macroSnapshot)
-                          .map(([key, value]) => `<li><strong>${formatLabel(key)}:</strong> ${formatMetric(value)}</li>`)
-                          .join('');
-                      macroSnapshotHtml = `
-                          <hr>
-                          <h3>Macro Environment Snapshot</h3>
-                          <ul>${macroItems}</ul>
-                      `;
-                  }
+                const fundamentals = data.fundamentals || {};
+                let fundamentalsHtml = '';
+                const fundamentalKeys = ['trailing_pe', 'forward_pe', 'peg_ratio', 'price_to_book', 'dividend_yield', 'market_cap', 'beta'];
+                const fundamentalsList = fundamentalKeys
+                    .filter((key) => fundamentals[key] !== undefined && fundamentals[key] !== null)
+                    .map((key) => {
+                        const formattedValue = key === 'dividend_yield'
+                            ? formatPercentFromDecimal(fundamentals[key])
+                            : formatMetric(fundamentals[key]);
+                        return `<li><strong>${formatLabel(key)}:</strong> ${formattedValue}</li>`;
+                    });
+                if (fundamentalsList.length > 0) {
+                    fundamentalsHtml = `
+                        <section>
+                            <h3 class="section-title">Fundamental Snapshot</h3>
+                            <div class="highlight-card">
+                                <ul>${fundamentalsList.join('')}</ul>
+                            </div>
+                        </section>
+                    `;
+                }
 
-                  const fundamentals = data.fundamentals || {};
-                  let fundamentalsHtml = '';
-                  const fundamentalKeys = ["trailing_pe", "forward_pe", "peg_ratio", "price_to_book", "dividend_yield", "market_cap", "beta"];
-                  const fundamentalsList = fundamentalKeys
-                      .filter(key => fundamentals[key] !== undefined && fundamentals[key] !== null)
-                      .map(key => {
-                          const formattedValue = key === "dividend_yield"
-                              ? formatPercentFromDecimal(fundamentals[key])
-                              : formatMetric(fundamentals[key]);
-                          return `<li><strong>${formatLabel(key)}:</strong> ${formattedValue}</li>`;
-                      });
-                  if (fundamentalsList.length > 0) {
-                      fundamentalsHtml = `
-                          <hr>
-                          <h3>Fundamental Snapshot</h3>
-                          <ul>${fundamentalsList.join('')}</ul>
-                      `;
-                  }
+                const newsSummary = data.news_sentiment_summary || {};
+                let newsSummaryHtml = '';
+                if (Object.keys(newsSummary).length > 0) {
+                    const summaryItems = Object.entries(newsSummary)
+                        .map(([key, value]) => {
+                            if (typeof value === 'number' && !Number.isNaN(value)) {
+                                const isCount = key.toLowerCase().includes('count');
+                                const formatted = isCount ? formatMetric(value, 0) : formatMetric(value, 3);
+                                return `<li><strong>${formatLabel(key)}:</strong> ${formatted}</li>`;
+                            }
+                            return `<li><strong>${formatLabel(key)}:</strong> ${value}</li>`;
+                        })
+                        .join('');
+                    newsSummaryHtml = `
+                        <section>
+                            <h3 class="section-title">News Sentiment Summary (7-day)</h3>
+                            <div class="highlight-card">
+                                <ul>${summaryItems}</ul>
+                            </div>
+                        </section>
+                    `;
+                }
 
-                  const newsSummary = data.news_sentiment_summary || {};
-                  let newsSummaryHtml = '';
-                  if (Object.keys(newsSummary).length > 0) {
-                      const summaryItems = Object.entries(newsSummary)
-                          .map(([key, value]) => {
-                              if (typeof value === 'number' && !Number.isNaN(value)) {
-                                  const isCount = key.toLowerCase().includes('count');
-                                  const formatted = isCount ? formatMetric(value, 0) : formatMetric(value, 3);
-                                  return `<li><strong>${formatLabel(key)}:</strong> ${formatted}</li>`;
-                              }
-                              return `<li><strong>${formatLabel(key)}:</strong> ${value}</li>`;
-                          })
-                          .join('');
-                      newsSummaryHtml = `
-                          <hr>
-                          <h3>News Sentiment Summary (7-day)</h3>
-                          <ul>${summaryItems}</ul>
-                      `;
-                  }
+                const newsHighlights = Array.isArray(data.news_highlights) ? data.news_highlights.slice(0, 5) : [];
+                let newsHighlightsHtml = '';
+                if (newsHighlights.length > 0) {
+                    const highlightsList = newsHighlights
+                        .map((item) => `
+                            <li>
+                                <strong>${item.headline || 'Untitled'}</strong>
+                                <div>Published: ${formatDateTime(item.published)}</div>
+                                <div>Sentiment: ${formatMetric(item.sentiment, 3)}</div>
+                                <div>Categories: ${item.categories && item.categories.length ? item.categories.join(', ') : 'General'}</div>
+                                ${item.url ? `<div><a href="${item.url}" target="_blank" rel="noopener">Read Article</a></div>` : ''}
+                            </li>
+                        `)
+                        .join('');
+                    newsHighlightsHtml = `
+                        <section>
+                            <h3 class="section-title">Latest Relevant News</h3>
+                            <ul class="news-list">${highlightsList}</ul>
+                        </section>
+                    `;
+                }
 
-                  const newsHighlights = Array.isArray(data.news_highlights) ? data.news_highlights.slice(0, 5) : [];
-                  let newsHighlightsHtml = '';
-                  if (newsHighlights.length > 0) {
-                      const highlightsList = newsHighlights
-                          .map(item => `
-                              <li>
-                                  <strong>${item.headline || 'Untitled'}</strong>
-                                  <div>Published: ${formatDateTime(item.published)}</div>
-                                  <div>Sentiment: ${formatMetric(item.sentiment, 3)}</div>
-                                  <div>Categories: ${item.categories && item.categories.length ? item.categories.join(', ') : 'General'}</div>
-                                  ${item.url ? `<div><a href="${item.url}" target="_blank" rel="noopener">Read Article</a></div>` : ''}
-                              </li>
-                          `)
-                          .join('');
-                      newsHighlightsHtml = `
-                          <hr>
-                          <h3>Latest Relevant News</h3>
-                          <ul>${highlightsList}</ul>
-                      `;
-                  }
+                const modelRegressors = Array.isArray(data.model_regressors) ? data.model_regressors : [];
+                let modelRegressorsHtml = '';
+                if (modelRegressors.length > 0) {
+                    modelRegressorsHtml = `
+                        <section>
+                            <h3 class="section-title">Model Feature Inputs</h3>
+                            <div class="highlight-card">
+                                <p>Prophet regressors considered in this forecast:</p>
+                                <p>${modelRegressors.map(formatLabel).join(', ')}</p>
+                            </div>
+                        </section>
+                    `;
+                }
 
-                  const modelRegressors = Array.isArray(data.model_regressors) ? data.model_regressors : [];
-                  let modelRegressorsHtml = '';
-                  if (modelRegressors.length > 0) {
-                      modelRegressorsHtml = `
-                          <hr>
-                          <h3>Model Feature Inputs</h3>
-                          <p>Prophet regressors considered in this forecast:</p>
-                          <p>${modelRegressors.map(formatLabel).join(', ')}</p>
-                      `;
-                  }
-
-                  let featureFlagsHtml = '';
-                  if (data.feature_flags) {
-                      featureFlagsHtml = `
-                          <p><strong>Macro Data Activated:</strong> ${data.feature_flags.macro ? 'Yes' : 'No'}</p>
-                          <p><strong>News Sentiment Activated:</strong> ${data.feature_flags.news ? 'Yes' : 'No'}</p>
-                      `;
-                  }
+                let featureFlagsHtml = '';
+                if (data.feature_flags) {
+                    featureFlagsHtml = `
+                        <section>
+                            <h3 class="section-title">Feature Flags</h3>
+                            <div class="highlight-card">
+                                <p><strong>Macro Data Activated:</strong> ${data.feature_flags.macro ? 'Yes' : 'No'}</p>
+                                <p><strong>News Sentiment Activated:</strong> ${data.feature_flags.news ? 'Yes' : 'No'}</p>
+                            </div>
+                        </section>
+                    `;
+                }
 
                 resultDiv.innerHTML = `
-                    <h2>Forecast for ${data.ticker || 'N/A'}</h2>
+                    <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
                     <p><strong>Current Price (as of ${data.last_known_date || 'N/A'}):</strong> ${displayValue(data.current_price)}</p>
                     ${imageAnalysisHtml}
-                      ${featureFlagsHtml}
-                    <hr>
+                    ${featureFlagsHtml}
                     ${threeDayForecastHtml}
                     ${weekAheadForecastHtml}
-                      ${priceDiagnosticsHtml}
-                      ${macroSnapshotHtml}
-                      ${fundamentalsHtml}
-                      ${newsSummaryHtml}
-                      ${newsHighlightsHtml}
-                      ${modelRegressorsHtml}
+                    ${priceDiagnosticsHtml}
+                    ${macroSnapshotHtml}
+                    ${fundamentalsHtml}
+                    ${newsSummaryHtml}
+                    ${newsHighlightsHtml}
+                    ${modelRegressorsHtml}
                 `;
-
             } catch (error) {
                 loader.style.display = 'none';
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                resultDiv.style.display = 'none';
+                showFormMessage(`Error: ${error.message}`, 'error');
                 console.error('Error fetching forecast:', error);
             }
         }
