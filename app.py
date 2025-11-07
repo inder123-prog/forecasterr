@@ -23,7 +23,14 @@ CORS(app)
 
 # --- Helper function to get holidays for Prophet ---
 def get_market_holidays(years, country='US'):
-    market_holidays_lib = pyholidays.CountryHoliday(country, years=years, prov=None, state=None)
+    normalized_country = (country or '').upper()
+    if normalized_country in {"CRYPTO", "GLOBAL", "NONE", ""}:
+        return pd.DataFrame(columns=['holiday', 'ds'])
+    try:
+        market_holidays_lib = pyholidays.CountryHoliday(normalized_country, years=years, prov=None, state=None)
+    except Exception as exc:
+        logger.warning(f"Failed to resolve holidays for country '{country}': {exc}")
+        return pd.DataFrame(columns=['holiday', 'ds'])
     df_holidays = pd.DataFrame(columns=['holiday', 'ds'])
     if market_holidays_lib:
         holiday_dates = []
@@ -33,8 +40,6 @@ def get_market_holidays(years, country='US'):
             holiday_names.append(name)
         df_holidays['ds'] = pd.to_datetime(holiday_dates)
         df_holidays['holiday'] = holiday_names
-        # Optional: Filter out Saturdays and Sundays if the holidays library includes them
-        # df_holidays = df_holidays[df_holidays['ds'].dt.dayofweek < 5]
         logger.info(f"Generated {len(df_holidays)} holidays for {country} for years: {years}")
     return df_holidays
 
@@ -199,16 +204,36 @@ def forecast_stock_with_image():
     }
     ticker_symbol = "N/A" # Default if not found in form
     market_country = "US" # Default if not found
+    asset_type = "equity"
 
     try:
+        asset_type = (request.form.get('asset_type') or 'equity').strip().lower()
         ticker_symbol = request.form.get('ticker', 'N/A') # Provide default
         image_file = request.files.get('chartImage')
-        market_country = request.form.get('market_country', 'US')
+        market_country = (request.form.get('market_country') or 'US')
+        if isinstance(market_country, str):
+            market_country = market_country.strip().upper() or 'US'
+        else:
+            market_country = 'US'
 
         if not ticker_symbol or ticker_symbol == 'N/A':
             return jsonify({"error": "Ticker symbol is required"}), 400
 
-        logger.info(f"Received forecast request for ticker: {ticker_symbol} with image: {image_file.filename if image_file else 'No Image'}, Market: {market_country}")
+        ticker_symbol = ticker_symbol.strip()
+        valid_asset_types = {'equity', 'stock', 'etf', 'crypto'}
+        if asset_type not in valid_asset_types:
+            asset_type = 'equity'
+        heuristic_crypto = ticker_symbol.upper().endswith(('-USD', '-USDT', '-BTC', '-ETH')) or market_country == 'CRYPTO'
+        if asset_type != 'crypto' and heuristic_crypto:
+            asset_type = 'crypto'
+        is_crypto = asset_type == 'crypto'
+        if is_crypto:
+            market_country = 'CRYPTO'
+
+        logger.info(
+            f"Received forecast request for ticker: {ticker_symbol} with image: "
+            f"{image_file.filename if image_file else 'No Image'}, Market: {market_country}, AssetType: {asset_type}"
+        )
 
         if image_file and image_file.filename != '':
             try:
@@ -287,16 +312,19 @@ def forecast_stock_with_image():
         min_hist_year_check = last_date.year # Start checking holidays from last known date's year
         max_forecast_date_approx_check = last_date + pd.Timedelta(days=max(days_for_daily_forecast_periods, days_for_week_ahead_periods) + 30)
         max_hist_year_check = max_forecast_date_approx_check.year
-        holiday_years_for_check = list(range(min_hist_year_check, max_hist_year_check + 1))
-        custom_holidays_dates = get_market_holidays(years=holiday_years_for_check, country=market_country)['ds'].tolist()
+        custom_holidays_dates = []
+        if not is_crypto:
+            holiday_years_for_check = list(range(min_hist_year_check, max_hist_year_check + 1))
+            custom_holidays_dates = get_market_holidays(years=holiday_years_for_check, country=market_country)['ds'].tolist()
 
         trading_days_found = 0
         future_calendar_dates_in_forecast = forecast_output_daily_df[forecast_output_daily_df['ds'] > last_date]['ds']
 
         for potential_trading_date in future_calendar_dates_in_forecast:
-            if potential_trading_date.dayofweek >= 5: continue
-            is_holiday = any(potential_trading_date.normalize() == hol_date.normalize() for hol_date in custom_holidays_dates)
-            if is_holiday: continue
+            if (not is_crypto) and potential_trading_date.dayofweek >= 5:
+                continue
+            if (not is_crypto) and any(potential_trading_date.normalize() == hol_date.normalize() for hol_date in custom_holidays_dates):
+                continue
 
             prediction_row = forecast_output_daily_df[forecast_output_daily_df['ds'] == potential_trading_date].head(1)
             if not prediction_row.empty:
@@ -320,9 +348,10 @@ def forecast_stock_with_image():
         
         target_week_ahead_search_date = last_date + timedelta(days=7)
         for pot_wk_date in forecast_output_weekly_df[forecast_output_weekly_df['ds'] >= target_week_ahead_search_date]['ds']:
-            if pot_wk_date.dayofweek >= 5: continue
-            is_holiday_wk = any(pot_wk_date.normalize() == hol_date.normalize() for hol_date in custom_holidays_dates)
-            if is_holiday_wk: continue
+            if (not is_crypto) and pot_wk_date.dayofweek >= 5:
+                continue
+            if (not is_crypto) and any(pot_wk_date.normalize() == hol_date.normalize() for hol_date in custom_holidays_dates):
+                continue
             
             wk_pred_row = forecast_output_weekly_df[forecast_output_weekly_df['ds'] == pot_wk_date].head(1)
             if not wk_pred_row.empty:
@@ -378,7 +407,8 @@ def forecast_stock_with_image():
                 "news": enrichment_payload.get("has_news_features", False)
             },
             "model_regressors": regressor_columns_for_response,
-            "stock_dashboards": dashboard_views
+            "stock_dashboards": dashboard_views,
+            "asset_type": "crypto" if is_crypto else "equity"
         }
 
         return jsonify(response_payload)
