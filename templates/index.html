@@ -282,6 +282,193 @@
             text-decoration: underline;
         }
 
+        .dashboards-section {
+            margin-top: 28px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        .dashboard-card {
+            border: 1px solid rgba(210, 220, 235, 0.9);
+            border-radius: 16px;
+            padding: 18px 20px 20px;
+            background: #ffffff;
+            box-shadow: 0 16px 28px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .dashboard-headline {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .dashboard-title {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .dashboard-subtitle {
+            display: block;
+            margin-top: 4px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        .dashboard-interval {
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.06);
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+
+        .dashboard-price-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .dashboard-price {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .dashboard-change {
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.16);
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .dashboard-change.positive {
+            background: rgba(34, 197, 94, 0.14);
+            color: #0f8a49;
+        }
+
+        .dashboard-change.negative {
+            background: rgba(239, 68, 68, 0.14);
+            color: #c1362f;
+        }
+
+        .dashboard-change.neutral {
+            background: rgba(148, 163, 184, 0.16);
+            color: var(--text-muted);
+        }
+
+        .sparkline {
+            width: 100%;
+            height: 60px;
+            border-radius: 12px;
+            background: rgba(241, 245, 249, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .sparkline svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .sparkline polyline {
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .dashboard-card.accent-one-day .sparkline polyline {
+            stroke: #2dd4bf;
+        }
+
+        .dashboard-card.accent-five-day .sparkline polyline {
+            stroke: #f97316;
+        }
+
+        .dashboard-card.accent-one-month .sparkline polyline {
+            stroke: #6366f1;
+        }
+
+        .dashboard-card.accent-three-month .sparkline polyline {
+            stroke: #ec4899;
+        }
+
+        .sparkline.placeholder {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            background: rgba(241, 245, 249, 0.9);
+        }
+
+        .dashboard-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .dashboard-metrics strong {
+            color: var(--text-main);
+        }
+
+        .dashboard-card.accent-live {
+            border-top: 4px solid rgba(13, 110, 253, 0.85);
+        }
+
+        .dashboard-card.accent-one-day {
+            border-top: 4px solid rgba(45, 212, 191, 0.85);
+        }
+
+        .dashboard-card.accent-five-day {
+            border-top: 4px solid rgba(249, 115, 22, 0.85);
+        }
+
+        .dashboard-card.accent-one-month {
+            border-top: 4px solid rgba(99, 102, 241, 0.85);
+        }
+
+        .dashboard-card.accent-three-month {
+            border-top: 4px solid rgba(236, 72, 153, 0.85);
+        }
+
+        .forecast-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 22px;
+            margin: 12px 0 8px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .forecast-meta .meta-item {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .forecast-meta .meta-item strong {
+            color: var(--text-main);
+        }
+
         .search-wrapper {
             position: relative;
         }
@@ -370,6 +557,10 @@
             }
 
             .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -617,6 +808,153 @@
             }
         }
 
+        const DASHBOARD_CONFIG = [
+            { key: 'live', title: 'Live Overview', description: 'Intraday pulse and latest move', accent: 'accent-live' },
+            { key: 'one_day', title: '1 Day Session', description: 'Full trading day momentum', accent: 'accent-one-day' },
+            { key: 'five_day', title: '5 Day Trend', description: 'Rolling workweek performance', accent: 'accent-five-day' },
+            { key: 'one_month', title: '1 Month Momentum', description: 'Medium-term movement', accent: 'accent-one-month' },
+            { key: 'three_month', title: '3 Month Trajectory', description: 'Quarterly trajectory', accent: 'accent-three-month' }
+        ];
+
+        function formatIntervalLabel(interval) {
+            if (!interval || typeof interval !== 'string') {
+                return '';
+            }
+            const normalized = interval.toLowerCase();
+            const mapping = {
+                '1m': '1 min',
+                '2m': '2 min',
+                '5m': '5 min',
+                '15m': '15 min',
+                '30m': '30 min',
+                '60m': 'Hourly',
+                '1h': 'Hourly',
+                '1d': 'Daily',
+                '5d': '5 Day',
+                '1wk': 'Weekly',
+                '1mo': 'Monthly'
+            };
+            return mapping[normalized] || interval;
+        }
+
+        function renderChangePill(changeValue, changePercent) {
+            if (changeValue === null || changeValue === undefined || Number.isNaN(Number(changeValue))) {
+                return '<span class="dashboard-change neutral">N/A</span>';
+            }
+            const numericChange = Number(changeValue);
+            const direction = numericChange > 0 ? 'positive' : numericChange < 0 ? 'negative' : 'neutral';
+            const absChange = Math.abs(numericChange);
+            const changeText = formatMetric(absChange, 2);
+
+            let percentText = '';
+            if (changePercent !== null && changePercent !== undefined && !Number.isNaN(Number(changePercent))) {
+                const absPercent = Math.abs(Number(changePercent));
+                const signPercent = numericChange > 0 ? '+' : numericChange < 0 ? '-' : '';
+                percentText = ` (${signPercent}${absPercent.toFixed(2)}%)`;
+            }
+
+            const signSymbol = numericChange > 0 ? '+' : numericChange < 0 ? '-' : '';
+            return `<span class="dashboard-change ${direction}">${signSymbol}${changeText}${percentText}</span>`;
+        }
+
+        function renderSparkline(series) {
+            if (!Array.isArray(series) || series.length < 2) {
+                return '<div class="sparkline placeholder">Trend data unavailable</div>';
+            }
+            const sanitized = series
+                .map(point => ({
+                    price: Number(point.price),
+                    time: point.time
+                }))
+                .filter(point => !Number.isNaN(point.price));
+
+            if (sanitized.length < 2) {
+                return '<div class="sparkline placeholder">Trend data unavailable</div>';
+            }
+
+            const values = sanitized.map(point => point.price);
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const range = max - min;
+            const lastIndex = sanitized.length - 1;
+
+            const points = sanitized.map((point, index) => {
+                const x = lastIndex === 0 ? 0 : (index / lastIndex) * 100;
+                const y = range === 0 ? 50 : 100 - ((point.price - min) / range) * 100;
+                return `${x.toFixed(2)},${y.toFixed(2)}`;
+            }).join(' ');
+
+            return `
+                <div class="sparkline" role="presentation" aria-hidden="true">
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polyline points="${points}" />
+                    </svg>
+                </div>
+            `;
+        }
+
+        function renderDashboards(dashboards) {
+            if (!dashboards || typeof dashboards !== 'object') {
+                return '';
+            }
+
+            let cardsHtml = '';
+            DASHBOARD_CONFIG.forEach(config => {
+                const snapshot = dashboards[config.key];
+                if (!snapshot) {
+                    return;
+                }
+
+                const intervalLabel = snapshot.interval ? formatIntervalLabel(snapshot.interval) : '';
+                const sparklineHtml = renderSparkline(snapshot.series);
+                const metrics = [
+                    `<span><strong>High:</strong> ${displayValue(snapshot.high)}</span>`,
+                    `<span><strong>Low:</strong> ${displayValue(snapshot.low)}</span>`
+                ];
+
+                if (config.key === 'live' && snapshot.previous_close !== undefined && snapshot.previous_close !== null) {
+                    metrics.push(`<span><strong>Prev Close:</strong> ${displayValue(snapshot.previous_close)}</span>`);
+                }
+
+                if (snapshot.volume !== undefined && snapshot.volume !== null && !Number.isNaN(Number(snapshot.volume))) {
+                    metrics.push(`<span><strong>Volume:</strong> ${formatMetric(snapshot.volume, 0)}</span>`);
+                }
+
+                cardsHtml += `
+                    <div class="dashboard-card ${config.accent}">
+                        <div class="dashboard-headline">
+                            <div>
+                                <h4 class="dashboard-title">${config.title}</h4>
+                                <span class="dashboard-subtitle">${config.description}</span>
+                            </div>
+                            ${intervalLabel ? `<span class="dashboard-interval">${intervalLabel}</span>` : ''}
+                        </div>
+                        <div class="dashboard-price-row">
+                            <span class="dashboard-price">${displayValue(snapshot.latest_price)}</span>
+                            ${renderChangePill(snapshot.price_change, snapshot.price_change_percent)}
+                        </div>
+                        ${sparklineHtml}
+                        <div class="dashboard-metrics">
+                            ${metrics.join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (!cardsHtml.trim()) {
+                return '';
+            }
+
+            return `
+                <section class="dashboards-section">
+                    <h3 class="section-title">Market Dashboards</h3>
+                    <div class="dashboard-grid">
+                        ${cardsHtml}
+                    </div>
+                </section>
+            `;
+        }
+
         async function getForecast() {
             clearFormMessage();
             const marketCountry = document.getElementById('marketCountry').value;
@@ -673,9 +1011,9 @@
                 clearFormMessage();
                 const data = await response.json();
 
-                let imageAnalysisHtml = '';
+                let imageSentimentMeta = '';
                 if (data.image_analysis_sentiment && data.image_analysis_sentiment !== 'Not Provided') {
-                    imageAnalysisHtml = `<p><strong>Chart Image Sentiment:</strong> ${data.image_analysis_sentiment}</p>`;
+                    imageSentimentMeta = `<span class="meta-item"><strong>Chart Image Sentiment:</strong> ${data.image_analysis_sentiment}</span>`;
                 }
 
                 let threeDayForecastHtml = '<section><h3 class="section-title">Next 3 Trading Days</h3>';
@@ -849,20 +1187,30 @@
                     `;
                 }
 
-                resultDiv.innerHTML = `
-                    <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
-                    <p><strong>Current Price (as of ${data.last_known_date || 'N/A'}):</strong> ${displayValue(data.current_price)}</p>
-                    ${imageAnalysisHtml}
-                    ${featureFlagsHtml}
-                    ${threeDayForecastHtml}
-                    ${weekAheadForecastHtml}
-                    ${priceDiagnosticsHtml}
-                    ${macroSnapshotHtml}
-                    ${fundamentalsHtml}
-                    ${newsSummaryHtml}
-                    ${newsHighlightsHtml}
-                    ${modelRegressorsHtml}
-                `;
+                  const dashboardsHtml = renderDashboards(data.stock_dashboards);
+                  const metaItems = [
+                      `<span class="meta-item"><strong>Current Price:</strong> ${displayValue(data.current_price)}</span>`,
+                      `<span class="meta-item"><strong>As of:</strong> ${formatDateTime(data.last_known_date)}</span>`
+                  ];
+                  if (imageSentimentMeta) {
+                      metaItems.push(imageSentimentMeta);
+                  }
+                  const metaHtml = `<div class="forecast-meta">${metaItems.join('')}</div>`;
+
+                  resultDiv.innerHTML = `
+                      <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
+                      ${metaHtml}
+                      ${dashboardsHtml}
+                      ${featureFlagsHtml}
+                      ${threeDayForecastHtml}
+                      ${weekAheadForecastHtml}
+                      ${priceDiagnosticsHtml}
+                      ${macroSnapshotHtml}
+                      ${fundamentalsHtml}
+                      ${newsSummaryHtml}
+                      ${newsHighlightsHtml}
+                      ${modelRegressorsHtml}
+                  `;
             } catch (error) {
                 loader.style.display = 'none';
                 resultDiv.style.display = 'none';

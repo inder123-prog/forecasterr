@@ -10,6 +10,7 @@ import io
 import holidays as pyholidays # For public holidays
 import os
 import requests
+import math
 
 from data_enrichment import build_enriched_dataset
 
@@ -346,6 +347,12 @@ def forecast_stock_with_image():
         last_date_display = last_date.strftime('%Y-%m-%d') if isinstance(last_date, (date, pd.Timestamp, datetime)) else "undefined"
         week_ahead_price_display = week_ahead_pred_details.get('price', "N/A") # Use .get for safety
 
+        try:
+            dashboard_views = build_stock_dashboards(ticker_symbol)
+        except Exception as dashboard_error:
+            dashboard_views = {}
+            logger.error(f"Failed to build dashboard snapshots for {ticker_symbol}: {dashboard_error}", exc_info=True)
+
         logger.info(f"Forecast for {ticker_symbol} (Image Trend: {str(image_trend)}, Market: {market_country}): Current ${current_price_display} (as of {last_date_display}), "
                     f"3-Day Forecast: {[(d['date'], d['price']) for d in three_day_forecast_results]}, "
                     f"Week Ahead Prediction ({week_ahead_pred_details.get('date', 'N/A')}): ${week_ahead_price_display}")
@@ -370,7 +377,8 @@ def forecast_stock_with_image():
                 "macro": enrichment_payload.get("has_macro_features", False),
                 "news": enrichment_payload.get("has_news_features", False)
             },
-            "model_regressors": regressor_columns_for_response
+            "model_regressors": regressor_columns_for_response,
+            "stock_dashboards": dashboard_views
         }
 
         return jsonify(response_payload)
@@ -385,6 +393,162 @@ def forecast_stock_with_image():
 
         logger.error(f"Error in /forecast_with_image endpoint for ticker '{current_ticker_on_error}' (image_trend state: {current_image_trend_on_error}): {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred. Please check logs."}), 500
+
+def _prepare_history_frame(hist_df: pd.DataFrame) -> pd.DataFrame:
+    if hist_df is None or hist_df.empty:
+        return pd.DataFrame()
+    df = hist_df.copy().reset_index()
+    date_column = None
+    for candidate in ("Datetime", "Date", "index"):
+        if candidate in df.columns:
+            date_column = candidate
+            break
+    if date_column is None:
+        return pd.DataFrame()
+    df["ds"] = pd.to_datetime(df[date_column]).dt.tz_localize(None)
+    df = df.sort_values("ds")
+    return df
+
+def _serialize_price_series(hist_df: pd.DataFrame, max_points: int = 120):
+    if hist_df.empty or "ds" not in hist_df.columns or "Close" not in hist_df.columns:
+        return []
+    total_points = len(hist_df)
+    if total_points <= max_points:
+        sampled_df = hist_df
+    else:
+        step = max(1, math.ceil(total_points / max_points))
+        indices = list(range(0, total_points, step))
+        if indices[-1] != total_points - 1:
+            indices.append(total_points - 1)
+        sampled_df = hist_df.iloc[indices]
+    series = []
+    for _, row in sampled_df.iterrows():
+        price = row.get("Close")
+        timestamp = row.get("ds")
+        if pd.isna(price) or pd.isna(timestamp):
+            continue
+        try:
+            series.append({
+                "time": timestamp.isoformat(),
+                "price": round(float(price), 4)
+            })
+        except Exception:
+            continue
+    return series
+
+def _compute_change(latest_value: float, reference_value: float):
+    if reference_value in (None, 0) or pd.isna(reference_value):
+        return None, None
+    change = latest_value - reference_value
+    percent = (change / reference_value) * 100 if reference_value != 0 else None
+    return change, percent
+
+def _safe_round(value, digits=2):
+    try:
+        if value is None or pd.isna(value):
+            return None
+        return round(float(value), digits)
+    except Exception:
+        return None
+
+def _safe_int(value):
+    try:
+        if value is None or pd.isna(value):
+            return None
+        return int(float(value))
+    except Exception:
+        return None
+
+def build_stock_dashboards(ticker_symbol: str):
+    dashboards = {}
+    if not ticker_symbol:
+        return dashboards
+
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+    except Exception as exc:
+        logger.error(f"Failed to initialize yfinance ticker for dashboards ({ticker_symbol}): {exc}", exc_info=True)
+        return dashboards
+
+    intraday_df = pd.DataFrame()
+    fast_info = {}
+    try:
+        intraday_raw = ticker.history(period="1d", interval="5m")
+        intraday_df = _prepare_history_frame(intraday_raw)
+    except Exception as exc:
+        logger.warning(f"Unable to fetch intraday data for {ticker_symbol}: {exc}")
+
+    try:
+        fast_info = getattr(ticker, "fast_info", {}) or {}
+    except Exception:
+        fast_info = {}
+
+    if not intraday_df.empty:
+        latest_close = intraday_df["Close"].iloc[-1]
+        previous_close = fast_info.get("previous_close")
+        if previous_close in (None, 0) or (isinstance(previous_close, float) and math.isnan(previous_close)):
+            if len(intraday_df) > 1:
+                previous_close = intraday_df["Close"].iloc[0]
+            else:
+                previous_close = None
+        change_value, change_percent = _compute_change(float(latest_close), float(previous_close) if previous_close not in (None, "") else None)
+        live_series = _serialize_price_series(intraday_df.tail(60))
+        dashboards["live"] = {
+            "latest_price": _safe_round(latest_close),
+            "previous_close": _safe_round(previous_close),
+            "price_change": _safe_round(change_value),
+            "price_change_percent": _safe_round(change_percent),
+            "high": _safe_round(intraday_df["High"].max()),
+            "low": _safe_round(intraday_df["Low"].min()),
+            "volume": _safe_int(fast_info.get("last_volume")) or _safe_int(intraday_df["Volume"].iloc[-1]),
+            "series": live_series,
+            "interval": "5m"
+        }
+        day_change_value, day_change_percent = _compute_change(float(latest_close), float(intraday_df["Close"].iloc[0]))
+        dashboards["one_day"] = {
+            "latest_price": _safe_round(latest_close),
+            "price_change": _safe_round(day_change_value),
+            "price_change_percent": _safe_round(day_change_percent),
+            "high": _safe_round(intraday_df["High"].max()),
+            "low": _safe_round(intraday_df["Low"].min()),
+            "volume": _safe_int(intraday_df["Volume"].sum()),
+            "series": _serialize_price_series(intraday_df),
+            "interval": "5m"
+        }
+
+    period_configs = {
+        "five_day": {"period": "5d", "interval": "30m"},
+        "one_month": {"period": "1mo", "interval": "1d"},
+        "three_month": {"period": "3mo", "interval": "1d"}
+    }
+
+    for label, config in period_configs.items():
+        try:
+            raw_df = ticker.history(period=config["period"], interval=config["interval"])
+        except Exception as exc:
+            logger.warning(f"Failed to fetch history for {ticker_symbol} ({label}): {exc}")
+            continue
+
+        prepared_df = _prepare_history_frame(raw_df)
+        if prepared_df.empty:
+            continue
+
+        closing_series = prepared_df["Close"]
+        latest_price = closing_series.iloc[-1]
+        start_price = closing_series.iloc[0]
+        change_value, change_percent = _compute_change(float(latest_price), float(start_price))
+        dashboards[label] = {
+            "latest_price": _safe_round(latest_price),
+            "price_change": _safe_round(change_value),
+            "price_change_percent": _safe_round(change_percent),
+            "high": _safe_round(prepared_df["High"].max()),
+            "low": _safe_round(prepared_df["Low"].min()),
+            "volume": _safe_int(prepared_df["Volume"].sum()),
+            "series": _serialize_price_series(prepared_df),
+            "interval": config["interval"]
+        }
+
+    return dashboards
 
 def search_companies_by_query(query, region='US', lang='en-US', max_results=6):
     search_url = "https://query1.finance.yahoo.com/v1/finance/search"
