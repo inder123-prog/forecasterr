@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FORECASTERRR | Sign In</title>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --primary-light: #2563eb;
+            --background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            --card-bg: rgba(15, 23, 42, 0.85);
+            --overlay: rgba(15, 23, 42, 0.8);
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --error: #f87171;
+            --success: #34d399;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--background);
+            font-family: "Inter", "Segoe UI", Tahoma, sans-serif;
+            color: var(--text-main);
+            padding: 24px;
+        }
+
+        .hero-card {
+            width: 100%;
+            max-width: 720px;
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 48px 56px;
+            box-shadow: 0 30px 60px rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(6px);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.35), transparent 55%);
+            opacity: 0.9;
+        }
+
+        .hero-card > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 3rem;
+            letter-spacing: 0.3rem;
+        }
+
+        .tagline {
+            margin-top: 16px;
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .actions {
+            margin-top: 40px;
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        button.cta {
+            min-width: 160px;
+            padding: 14px 28px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            font-size: 1.05rem;
+            font-weight: 600;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+            color: #0b1120;
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        }
+
+        button.cta.secondary {
+            color: var(--text-main);
+            background: rgba(148, 163, 184, 0.2);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        button.cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 30px rgba(30, 64, 175, 0.35);
+        }
+
+        button.cta.secondary:hover {
+            box-shadow: 0 16px 28px rgba(148, 163, 184, 0.25);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--overlay);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 50;
+        }
+
+        .overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: #0f172a;
+            width: 100%;
+            max-width: 420px;
+            border-radius: 22px;
+            padding: 32px 34px;
+            position: relative;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            animation: fadeIn 0.25s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal h2 {
+            margin: 0 0 4px;
+            font-size: 1.6rem;
+        }
+
+        .modal p {
+            margin: 0 0 24px;
+            color: var(--text-muted);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(148, 163, 184, 0.15);
+            border: none;
+            color: var(--text-main);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .form-group input {
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(15, 23, 42, 0.85);
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+        }
+
+        .form-message {
+            min-height: 22px;
+            font-size: 0.92rem;
+            margin-bottom: 12px;
+        }
+
+        .form-message.error {
+            color: var(--error);
+        }
+
+        .form-message.success {
+            color: var(--success);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.15s ease;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #f8fafc;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(37, 99, 235, 0.35);
+        }
+
+        .submit-btn:disabled {
+            background: rgba(71, 85, 105, 0.6);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        @media (max-width: 640px) {
+            .hero-card {
+                padding: 36px 28px;
+            }
+
+            h1 {
+                font-size: 2.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-card">
+        <h1>FORECASTERRR</h1>
+        <p class="tagline">
+            Welcome to your personalized market intelligence hub. Sign in or create an account to unlock forecasts,
+            insights, and real-time dashboards tailored to your investments.
+        </p>
+        <div class="actions">
+            <button class="cta" id="loginTrigger">Login</button>
+            <button class="cta secondary" id="registerTrigger">Register</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="authOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal" id="authModal">
+            <button class="close-btn" id="closeModal" aria-label="Close dialog">&times;</button>
+            <h2 id="modalTitle">Login</h2>
+            <p id="modalSubtitle">Enter your credentials to access FORECASTERRR.</p>
+            <div class="form-message" id="formMessage"></div>
+
+            <form id="authForm">
+                <div class="form-group">
+                    <label for="usernameInput">Username</label>
+                    <input type="text" id="usernameInput" name="username" autocomplete="username" required>
+                </div>
+                <div class="form-group" id="emailGroup" style="display: none;">
+                    <label for="emailInput">Email</label>
+                    <input type="email" id="emailInput" name="email" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="passwordInput">Password</label>
+                    <input type="password" id="passwordInput" name="password" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="submit-btn" id="submitBtn">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const overlay = document.getElementById('authOverlay');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalSubtitle = document.getElementById('modalSubtitle');
+        const formMessage = document.getElementById('formMessage');
+        const emailGroup = document.getElementById('emailGroup');
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
+        const usernameInput = document.getElementById('usernameInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const authForm = document.getElementById('authForm');
+
+        let currentMode = 'login';
+
+        const modalConfig = {
+            login: {
+                title: 'Login',
+                subtitle: 'Enter your credentials to access FORECASTERRR.',
+                submitText: 'Login',
+                requiresEmail: false,
+                endpoint: '/api/login'
+            },
+            register: {
+                title: 'Register',
+                subtitle: 'Create your FORECASTERRR account to get started.',
+                submitText: 'Register',
+                requiresEmail: true,
+                endpoint: '/api/register'
+            }
+        };
+
+        function openModal(mode) {
+            currentMode = mode;
+            const config = modalConfig[mode];
+            modalTitle.textContent = config.title;
+            modalSubtitle.textContent = config.subtitle;
+            submitBtn.textContent = config.submitText;
+            emailGroup.style.display = config.requiresEmail ? 'flex' : 'none';
+            if (emailInput) {
+                emailInput.required = config.requiresEmail;
+            }
+            if (passwordInput) {
+                passwordInput.setAttribute('autocomplete', config.requiresEmail ? 'new-password' : 'current-password');
+            }
+            formMessage.textContent = '';
+            formMessage.className = 'form-message';
+            authForm.reset();
+            overlay.classList.add('visible');
+            overlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => {
+                usernameInput?.focus();
+            }, 50);
+        }
+
+        function closeModal() {
+            overlay.classList.remove('visible');
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        document.getElementById('loginTrigger').addEventListener('click', () => openModal('login'));
+        document.getElementById('registerTrigger').addEventListener('click', () => openModal('register'));
+        document.getElementById('closeModal').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && overlay.classList.contains('visible')) {
+                closeModal();
+            }
+        });
+
+        function setFormMessage(message, type = 'error') {
+            formMessage.textContent = message;
+            formMessage.className = `form-message ${type}`;
+        }
+
+        async function handleAuthSubmit(event) {
+            event.preventDefault();
+            const formData = new FormData(authForm);
+            const payload = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            if (currentMode === 'register') {
+                payload.email = formData.get('email');
+            }
+
+            payload.username = payload.username ? payload.username.trim() : '';
+            payload.password = payload.password ? payload.password.trim() : '';
+            if (currentMode === 'register') {
+                payload.email = payload.email ? payload.email.trim() : '';
+            }
+
+            if (!payload.username || !payload.password || (currentMode === 'register' && !payload.email)) {
+                setFormMessage('Please complete all required fields.', 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            setFormMessage('');
+
+            try {
+                const response = await fetch(modalConfig[currentMode].endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    const errorMessage = result.error || 'Unable to process request. Please try again.';
+                    setFormMessage(errorMessage, 'error');
+                    submitBtn.disabled = false;
+                    return;
+                }
+
+                setFormMessage(result.message || 'Success!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 300);
+            } catch (error) {
+                console.error(`${currentMode} error:`, error);
+                setFormMessage('Unexpected error. Please check your connection and try again.', 'error');
+                submitBtn.disabled = false;
+            }
+        }
+
+        authForm.addEventListener('submit', handleAuthSubmit);
+    </script>
+</body>
+</html>

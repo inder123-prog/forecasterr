@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_cors import CORS
 import yfinance as yf
 import pandas as pd
@@ -11,6 +11,9 @@ import holidays as pyholidays # For public holidays
 import os
 import requests
 import math
+import json
+from pathlib import Path
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from data_enrichment import build_enriched_dataset
 
@@ -19,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FORECAST_APP_SECRET", "dev-secret-key")
 CORS(app)
 
 _DEFAULT_YAHOO_HEADERS = {
@@ -35,6 +39,36 @@ def _build_yahoo_headers():
     if override_ua:
         headers["User-Agent"] = override_ua
     return headers
+
+
+USER_STORE_PATH = Path(__file__).resolve().parent / 'users.json'
+
+
+def _load_users():
+    if not USER_STORE_PATH.exists():
+        return {}
+    try:
+        with USER_STORE_PATH.open('r', encoding='utf-8') as file:
+            data = json.load(file)
+            if isinstance(data, dict):
+                return data
+    except json.JSONDecodeError as exc:
+        logger.error(f"Failed to parse user store JSON: {exc}")
+    except Exception as exc:
+        logger.error(f"Unexpected error loading user store: {exc}", exc_info=True)
+    return {}
+
+
+def _save_users(users: dict):
+    try:
+        with USER_STORE_PATH.open('w', encoding='utf-8') as file:
+            json.dump(users, file, indent=2)
+    except Exception as exc:
+        logger.error(f"Failed to persist user store: {exc}", exc_info=True)
+
+
+def _require_authentication():
+    return 'user' in session
 
 # --- Helper function to get holidays for Prophet ---
 def get_market_holidays(years, country='US'):
@@ -205,10 +239,74 @@ def train_and_forecast(
 # --- Flask Routes ---
 @app.route('/')
 def index():
-    return render_template('index.html')
+    if 'user' not in session:
+        return render_template('login.html')
+    return render_template('index.html', username=session.get('user'))
+
+
+@app.route('/api/register', methods=['POST'])
+def register_user():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = (payload.get('password') or '').strip()
+    email = (payload.get('email') or '').strip()
+
+    if not username or not password or not email:
+        return jsonify({"error": "Username, password, and email are required."}), 400
+    if len(username) < 3:
+        return jsonify({"error": "Username must be at least 3 characters long."}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters long."}), 400
+
+    users = _load_users()
+    if username in users:
+        return jsonify({"error": "Username already exists. Please choose another."}), 400
+
+    users[username] = {
+        "password": generate_password_hash(password),
+        "email": email
+    }
+    _save_users(users)
+    session['user'] = username
+    return jsonify({"message": "Registration successful.", "username": username})
+
+
+@app.route('/api/login', methods=['POST'])
+def login_user():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = (payload.get('password') or '').strip()
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required."}), 400
+
+    users = _load_users()
+    user_record = users.get(username)
+    if not user_record:
+        return jsonify({"error": "Invalid username or password."}), 400
+
+    if not check_password_hash(user_record.get('password', ''), password):
+        return jsonify({"error": "Invalid username or password."}), 400
+
+    session['user'] = username
+    return jsonify({"message": "Login successful.", "username": username})
+
+
+@app.route('/api/logout', methods=['POST'])
+def logout_user():
+    session.pop('user', None)
+    return jsonify({"message": "Logged out."})
+
+
+@app.route('/logout', methods=['GET'])
+def logout_redirect():
+    session.pop('user', None)
+    return redirect(url_for('index'))
 
 @app.route('/forecast_with_image', methods=['POST'])
 def forecast_stock_with_image():
+    if not _require_authentication():
+        return jsonify({"error": "Unauthorized"}), 401
     # Initialize variables to ensure they have default values
     image_trend = None
     image_sentiment_for_response = "Not Provided"
@@ -707,6 +805,8 @@ def search_companies_by_query(query, region='US', lang='en-US', max_results=6):
 
 @app.route('/company_search')
 def company_search():
+    if not _require_authentication():
+        return jsonify({"results": [], "error": "Unauthorized"}), 401
     query = request.args.get('q', '').strip()
     if not query or len(query) < 2:
         return jsonify({"results": []})
