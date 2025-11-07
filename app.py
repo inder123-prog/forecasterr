@@ -325,13 +325,17 @@ def forecast_stock_with_image():
 
     try:
         asset_type = (request.form.get('asset_type') or 'equity').strip().lower()
-        ticker_symbol = request.form.get('ticker', 'N/A') # Provide default
+        ticker_symbol = request.form.get('ticker', 'N/A')  # Provide default
         image_file = request.files.get('chartImage')
         market_country = (request.form.get('market_country') or 'US')
         if isinstance(market_country, str):
             market_country = market_country.strip().upper() or 'US'
         else:
             market_country = 'US'
+
+        enable_macro_features = (request.form.get('enable_macro', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
+        enable_news_features = (request.form.get('enable_news', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
+        enable_candlestick_features = (request.form.get('enable_candlestick', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
 
         if not ticker_symbol or ticker_symbol == 'N/A':
             return jsonify({"error": "Ticker symbol is required"}), 400
@@ -404,7 +408,10 @@ def forecast_stock_with_image():
                 price_df=stock_data_df.copy(),
                 forecast_extension_days=max(days_for_daily_forecast_periods, days_for_week_ahead_periods) + 30,
                 market_country=market_country,
-                price_ohlc_df=stock_ohlc_df
+                price_ohlc_df=stock_ohlc_df,
+                enable_macro=enable_macro_features,
+                enable_news=enable_news_features,
+                enable_candlestick=enable_candlestick_features
             )
             enrichment_payload.update({
                 key: built_enrichment.get(key, enrichment_payload.get(key))
@@ -577,7 +584,7 @@ def forecast_stock_with_image():
 
         response_payload = {
             "ticker": ticker_symbol,
-            "current_price": current_price_display if current_price_display != "N/A" else None, # Send None if N/A for JS
+            "current_price": current_price_display if current_price_display != "N/A" else None,  # Send None if N/A for JS
             "last_known_date": last_date_display,
             "image_analysis_sentiment": image_sentiment_for_response,
             "three_day_forecast": three_day_forecast_results,
@@ -586,18 +593,38 @@ def forecast_stock_with_image():
             "macro_snapshot": enrichment_payload.get("macro_snapshot", {}),
             "news_sentiment_summary": enrichment_payload.get("news_sentiment_summary", {}),
             "news_highlights": enrichment_payload.get("news_highlights", []),
-          "fundamentals": enrichment_payload.get("fundamentals", {}),
-          "feature_flags": {
-              "macro": enrichment_payload.get("has_macro_features", False),
-              "news": enrichment_payload.get("has_news_features", False),
-              "candlestick": enrichment_payload.get("has_candlestick_features", False)
-          },
-          "candlestick_patterns": candlestick_summary,
-          "candlestick_feature_columns": enrichment_payload.get("candlestick_feature_columns", []),
-          "model_regressors": regressor_columns_for_response,
-          "stock_dashboards": dashboard_views,
-          "asset_type": "crypto" if is_crypto else "equity"
+            "fundamentals": enrichment_payload.get("fundamentals", {}),
+            "feature_flags": {
+                "macro": enrichment_payload.get("has_macro_features", False),
+                "news": enrichment_payload.get("has_news_features", False),
+                "candlestick": enrichment_payload.get("has_candlestick_features", False)
+            },
+            "feature_flags_requested": enrichment_payload.get("requested_feature_flags", {}),
+            "candlestick_patterns": candlestick_summary,
+            "candlestick_feature_columns": enrichment_payload.get("candlestick_feature_columns", []),
+            "model_regressors": regressor_columns_for_response,
+            "stock_dashboards": dashboard_views,
+            "asset_type": "crypto" if is_crypto else "equity"
         }
+
+        feature_flag_notes = {}
+        if enable_macro_features:
+            if not enrichment_payload.get("has_macro_features", False):
+                feature_flag_notes["macro"] = "Macro data unavailable for this forecast. Ensure FRED_API_KEY is configured and data exists for the requested window."
+        else:
+            feature_flag_notes["macro"] = "Macro data disabled for this request."
+        if enable_news_features:
+            if not enrichment_payload.get("has_news_features", False):
+                feature_flag_notes["news"] = "No qualifying news sentiment was found for the requested window."
+        else:
+            feature_flag_notes["news"] = "News sentiment disabled for this request."
+        if enable_candlestick_features:
+            if not enrichment_payload.get("has_candlestick_features", False):
+                feature_flag_notes["candlestick"] = "Candlestick patterns could not be derived (insufficient OHLC data)."
+        else:
+            feature_flag_notes["candlestick"] = "Candlestick analytics disabled for this request."
+
+        response_payload["feature_flag_notes"] = feature_flag_notes
 
         return jsonify(response_payload)
 

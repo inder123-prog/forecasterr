@@ -114,6 +114,72 @@
             color: var(--text-main);
         }
 
+          .feature-toggle-card {
+              margin-top: 20px;
+              padding: 18px 20px;
+              border-radius: 16px;
+              border: 1px solid rgba(210, 220, 235, 0.9);
+              background: linear-gradient(135deg, #f9fbff 0%, #eef5ff 100%);
+              box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+          }
+
+          .feature-toggle-card h3 {
+              margin: 0 0 10px;
+              font-size: 1.15rem;
+              font-weight: 600;
+              color: var(--text-main);
+          }
+
+          .feature-toggle-subtitle {
+              margin: 0 0 18px;
+              font-size: 0.9rem;
+              color: var(--text-muted);
+          }
+
+          .feature-toggle-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+              gap: 14px;
+          }
+
+          .feature-toggle {
+              display: flex;
+              gap: 12px;
+              align-items: flex-start;
+              padding: 12px 14px;
+              border-radius: 14px;
+              border: 1px solid rgba(210, 220, 235, 0.7);
+              background: rgba(255, 255, 255, 0.85);
+              cursor: pointer;
+              transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+          }
+
+          .feature-toggle:hover {
+              border-color: var(--primary);
+              box-shadow: 0 14px 26px rgba(13, 110, 253, 0.12);
+              transform: translateY(-1px);
+          }
+
+          .feature-toggle input[type="checkbox"] {
+              margin-top: 4px;
+              width: 18px;
+              height: 18px;
+              accent-color: var(--primary);
+              cursor: pointer;
+          }
+
+          .feature-toggle .toggle-label {
+              font-weight: 600;
+              color: var(--text-main);
+          }
+
+          .feature-toggle .toggle-description {
+              display: block;
+              margin-top: 4px;
+              font-size: 0.85rem;
+              color: var(--text-muted);
+          }
+
         .input-shell {
             position: relative;
             display: flex;
@@ -293,6 +359,70 @@
             background: #f9fbff;
             margin-bottom: 16px;
         }
+
+          .feature-flag-status {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+          }
+
+          .feature-flag-row {
+              display: flex;
+              flex-direction: column;
+              gap: 6px;
+          }
+
+          .feature-flag-row-header {
+              display: flex;
+              flex-wrap: wrap;
+              align-items: center;
+              gap: 12px;
+          }
+
+          .feature-flag-name {
+              font-weight: 600;
+              color: var(--text-main);
+          }
+
+          .feature-flag-pills {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+          }
+
+          .feature-flag-chip {
+              font-size: 0.8rem;
+              font-weight: 600;
+              padding: 4px 10px;
+              border-radius: 999px;
+              border: 1px solid rgba(148, 163, 184, 0.4);
+              background: rgba(241, 245, 249, 0.7);
+              color: var(--text-muted);
+          }
+
+          .feature-flag-chip.on {
+              border-color: rgba(34, 197, 94, 0.35);
+              background: rgba(34, 197, 94, 0.18);
+              color: #0f8a49;
+          }
+
+          .feature-flag-chip.off {
+              border-color: rgba(239, 68, 68, 0.3);
+              background: rgba(239, 68, 68, 0.16);
+              color: #c1362f;
+          }
+
+          .feature-flag-chip.neutral {
+              border-color: rgba(148, 163, 184, 0.4);
+              background: rgba(241, 245, 249, 0.7);
+              color: var(--text-muted);
+          }
+
+          .feature-flag-note {
+              font-size: 0.82rem;
+              color: var(--text-muted);
+              padding-left: 2px;
+          }
 
         .highlight-card ul {
             margin: 12px 0 0 0;
@@ -618,6 +748,10 @@
                 align-items: flex-start;
                 gap: 12px;
             }
+
+              .feature-toggle-grid {
+                  grid-template-columns: 1fr;
+              }
         }
     </style>
 </head>
@@ -684,6 +818,34 @@
             </div>
         </div>
 
+          <div class="feature-toggle-card">
+              <h3>Feature Flags</h3>
+              <p class="feature-toggle-subtitle">Toggle optional enrichment signals before generating your forecast.</p>
+              <div class="feature-toggle-grid">
+                  <label class="feature-toggle">
+                      <input type="checkbox" id="toggleMacro" checked>
+                      <div>
+                          <span class="toggle-label">Macro Data</span>
+                          <span class="toggle-description">Blend FRED macro indicators into the Prophet model.</span>
+                      </div>
+                  </label>
+                  <label class="feature-toggle">
+                      <input type="checkbox" id="toggleNews" checked>
+                      <div>
+                          <span class="toggle-label">News Sentiment</span>
+                          <span class="toggle-description">Aggregate recent headlines and sentiment buckets.</span>
+                      </div>
+                  </label>
+                  <label class="feature-toggle">
+                      <input type="checkbox" id="toggleCandlestick" checked>
+                      <div>
+                          <span class="toggle-label">Candlestick Patterns</span>
+                          <span class="toggle-description">Score recent OHLC data for bullish/bearish signals.</span>
+                      </div>
+                  </label>
+              </div>
+          </div>
+
         <div id="formMessage" class="form-message"></div>
 
         <button class="primary-action" onclick="getForecast()">Generate Forecast</button>
@@ -703,6 +865,9 @@
         const loader = document.getElementById('loader');
         const assetTypeSelect = document.getElementById('assetType');
         const marketCountrySelect = document.getElementById('marketCountry');
+          const toggleMacro = document.getElementById('toggleMacro');
+          const toggleNews = document.getElementById('toggleNews');
+          const toggleCandlestick = document.getElementById('toggleCandlestick');
         const logoutBtn = document.getElementById('logoutBtn');
         let searchDebounceId = null;
         let latestSearchTerm = '';
@@ -932,7 +1097,13 @@
             }
         }
 
-        const DASHBOARD_CONFIG = [
+          const FEATURE_FLAG_LABELS = {
+              macro: 'Macro Data',
+              news: 'News Sentiment',
+              candlestick: 'Candlestick Patterns'
+          };
+
+          const DASHBOARD_CONFIG = [
             { key: 'live', title: 'Live Overview', description: 'Intraday pulse and latest move', accent: 'accent-live' },
             { key: 'one_day', title: '1 Day Session', description: 'Full trading day momentum', accent: 'accent-one-day' },
             { key: 'five_day', title: '5 Day Trend', description: 'Rolling workweek performance', accent: 'accent-five-day' },
@@ -1121,6 +1292,15 @@
             formData.append('ticker', ticker);
             formData.append('market_country', marketCountry);
             formData.append('asset_type', assetType);
+              if (toggleMacro) {
+                  formData.append('enable_macro', toggleMacro.checked ? 'true' : 'false');
+              }
+              if (toggleNews) {
+                  formData.append('enable_news', toggleNews.checked ? 'true' : 'false');
+              }
+              if (toggleCandlestick) {
+                  formData.append('enable_candlestick', toggleCandlestick.checked ? 'true' : 'false');
+              }
             if (imageFile) {
                 formData.append('chartImage', imageFile);
             }
@@ -1370,15 +1550,44 @@
                     `;
                 }
 
+                const featureFlags = data.feature_flags || {};
+                const featureFlagsRequested = data.feature_flags_requested || {};
+                const featureFlagNotes = data.feature_flag_notes || {};
+                const featureFlagKeys = ['macro', 'news', 'candlestick'].filter((key) =>
+                    Object.prototype.hasOwnProperty.call(featureFlags, key) ||
+                    Object.prototype.hasOwnProperty.call(featureFlagsRequested, key) ||
+                    Object.prototype.hasOwnProperty.call(featureFlagNotes, key)
+                );
                 let featureFlagsHtml = '';
-                if (data.feature_flags) {
+                if (featureFlagKeys.length > 0) {
+                    const featureFlagRows = featureFlagKeys.map((key) => {
+                        const label = FEATURE_FLAG_LABELS[key] || formatLabel(key);
+                        const requestedValue = featureFlagsRequested[key];
+                        const hasRequested = typeof requestedValue === 'boolean';
+                        const requestedText = hasRequested ? (requestedValue ? 'Yes' : 'No') : '—';
+                        const requestedClass = hasRequested ? (requestedValue ? 'on' : 'off') : 'neutral';
+                        const activatedValue = Boolean(featureFlags[key]);
+                        const activatedText = activatedValue ? 'Yes' : 'No';
+                        const activatedClass = activatedValue ? 'on' : 'off';
+                        const note = featureFlagNotes[key] || '';
+                        return `
+                            <div class="feature-flag-row">
+                                <div class="feature-flag-row-header">
+                                    <span class="feature-flag-name">${label}</span>
+                                    <div class="feature-flag-pills">
+                                        <span class="feature-flag-chip ${requestedClass}">Requested: ${requestedText}</span>
+                                        <span class="feature-flag-chip ${activatedClass}">Activated: ${activatedText}</span>
+                                    </div>
+                                </div>
+                                ${note ? `<div class="feature-flag-note">${note}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('');
                     featureFlagsHtml = `
                         <section>
-                            <h3 class="section-title">Feature Flags</h3>
-                            <div class="highlight-card">
-                                <p><strong>Macro Data Activated:</strong> ${data.feature_flags.macro ? 'Yes' : 'No'}</p>
-                                <p><strong>News Sentiment Activated:</strong> ${data.feature_flags.news ? 'Yes' : 'No'}</p>
-                              <p><strong>Candlestick Patterns Activated:</strong> ${data.feature_flags.candlestick ? 'Yes' : 'No'}</p>
+                            <h3 class="section-title">Feature Flag Status</h3>
+                            <div class="highlight-card feature-flag-status">
+                                ${featureFlagRows}
                             </div>
                         </section>
                     `;

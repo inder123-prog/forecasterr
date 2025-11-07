@@ -489,6 +489,9 @@ def build_enriched_dataset(
     forecast_extension_days: int,
     market_country: str = "US",
     price_ohlc_df: Optional[pd.DataFrame] = None,
+    enable_macro: bool = True,
+    enable_news: bool = True,
+    enable_candlestick: bool = True,
 ) -> Dict:
     """Build enriched training data with macro indicators, news sentiment, and fundamentals."""
 
@@ -499,19 +502,26 @@ def build_enriched_dataset(
     start_date = (price_df["ds"].min() - pd.Timedelta(days=400)).to_pydatetime()
     end_date = (price_df["ds"].max() + pd.Timedelta(days=buffer_days)).to_pydatetime()
 
-    econ_fetcher = EconomicIndicatorFetcher()
-    macro_df = econ_fetcher.get_macro_dataframe(start_date, end_date)
+    macro_df = pd.DataFrame(columns=["ds"])
+    if enable_macro:
+        econ_fetcher = EconomicIndicatorFetcher()
+        macro_df = econ_fetcher.get_macro_dataframe(start_date, end_date)
 
-    news_fetcher = NewsSentimentFetcher()
-    news_df, news_highlights = news_fetcher.get_news_features(
-        ticker_symbol, start_date, end_date
-    )
+    news_df = pd.DataFrame(columns=["ds"])
+    news_highlights = NewsHighlights(all_headlines=[], sentiment_summary={})
+    if enable_news:
+        news_fetcher = NewsSentimentFetcher()
+        news_df, news_highlights = news_fetcher.get_news_features(
+            ticker_symbol, start_date, end_date
+        )
 
-    try:
-        candlestick_payload = analyze_candlestick_patterns(price_ohlc_df)
-    except Exception as candlestick_error:
-        logger.warning("Candlestick analysis failed for %s: %s", ticker_symbol, candlestick_error)
-        candlestick_payload = analyze_candlestick_patterns(pd.DataFrame())
+    candlestick_payload = {"pattern_features": pd.DataFrame(), "summary": {}}
+    if enable_candlestick:
+        try:
+            candlestick_payload = analyze_candlestick_patterns(price_ohlc_df)
+        except Exception as candlestick_error:
+            logger.warning("Candlestick analysis failed for %s: %s", ticker_symbol, candlestick_error)
+            candlestick_payload = analyze_candlestick_patterns(pd.DataFrame())
 
     candlestick_features_df = candlestick_payload.get("pattern_features", pd.DataFrame())
     candlestick_summary = candlestick_payload.get("summary", {})
@@ -519,9 +529,9 @@ def build_enriched_dataset(
     has_candlestick_features = False
 
     feature_master_base = pd.DataFrame({"ds": pd.date_range(start=start_date, end=end_date, freq="D")})
-    if not macro_df.empty:
+    if enable_macro and not macro_df.empty:
         feature_master_base = feature_master_base.merge(macro_df, on="ds", how="left")
-    if not news_df.empty:
+    if enable_news and not news_df.empty:
         feature_master_base = feature_master_base.merge(news_df, on="ds", how="left")
 
     base_cols = [col for col in feature_master_base.columns if col != "ds"]
@@ -537,7 +547,7 @@ def build_enriched_dataset(
     )
 
     feature_master = feature_master_scaled.copy()
-    if not candlestick_features_df.empty:
+    if enable_candlestick and not candlestick_features_df.empty:
         candlestick_features_df = candlestick_features_df.copy()
         candlestick_features_df["ds"] = pd.to_datetime(candlestick_features_df["ds"]).dt.tz_localize(None)
         candlestick_features_df = candlestick_features_df.drop_duplicates(subset=["ds"], keep="last")
@@ -605,11 +615,16 @@ def build_enriched_dataset(
         "fundamentals": fundamentals_snapshot,
         "feature_stats": feature_stats,
         "price_diagnostics": price_metrics_serialized,
-        "has_macro_features": not macro_df.empty,
-        "has_news_features": not news_df.empty,
+        "has_macro_features": enable_macro and not macro_df.empty,
+        "has_news_features": enable_news and not news_df.empty,
         "candlestick_summary": candlestick_summary or {},
-        "has_candlestick_features": has_candlestick_features,
+        "has_candlestick_features": enable_candlestick and has_candlestick_features,
         "candlestick_feature_columns": candlestick_feature_columns,
+        "requested_feature_flags": {
+            "macro": enable_macro,
+            "news": enable_news,
+            "candlestick": enable_candlestick,
+        },
     }
     return enriched_payload
 
