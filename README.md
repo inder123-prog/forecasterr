@@ -1,6 +1,6 @@
-## Stock Forecasting Service
+## Market Forecasting Service
 
-This Flask application forecasts short-term stock prices and surfaces the context required to assess confidence in each prediction. In addition to historical pricing (via `yfinance`) and optional chart-image sentiment, the service now enriches every forecast with:
+This Flask application forecasts short-term prices for equities and leading crypto pairs, surfacing the context required to assess confidence in each prediction. In addition to historical pricing (via `yfinance`) and optional chart-image sentiment, the service now enriches every forecast with:
 
 - Macro-economic indicators from FRED (GDP, CPI, PPI, Federal Funds cycle, synthetic 40-day Fed cadence, and derived inflation metrics)
 - Company fundamentals (P/E ratios, PEG, dividend yield, beta, market cap, recent and upcoming earnings)
@@ -53,8 +53,9 @@ flask run --host=0.0.0.0 --port=5001
 
 Navigate to `http://localhost:5001` and request a forecast:
 
-1. Enter the stock ticker (e.g. `AAPL`)
-2. Choose market/holiday calendar
+1. Enter the ticker (e.g. `AAPL` or `BTC-USD`)
+2. Choose the asset type. For crypto, the holiday selector auto-locks to a 24/7 calendar.
+3. Choose market/holiday calendar (stocks only)
 3. (Optional) Upload a chart image for additional sentiment weighting
 4. Submit and review the forecast + enriched context (macro snapshot, fundamentals, news sentiment, recent price diagnostics, model regressors)
 
@@ -72,7 +73,13 @@ All regressors are standardised before being fed into Prophet. Future dates inhe
 
 ---
 
-### 5. Limitations & Next Steps
+### 5. Crypto Forecasting Notes
+
+- Select the `Crypto` asset type (or the `Crypto (Global 24/7)` market) to ensure the forecast runs without weekend or holiday filters.
+- Crypto dashboards and forecasts use the same Prophet workflow. Fundamentals may be sparse—Yahoo Finance does not expose valuation ratios for most digital assets.
+- Macro and news enrichment continues to run; when specialised crypto macro indicators are needed, extend `data_enrichment.py` with alternative data sources.
+
+### 6. Limitations & Next Steps
 
 - Without a FRED key the macro-regressor benefits are disabled (flagged in the UI); consider enforcing the key or caching recent pulls.
 - News sentiment currently relies on headline text; richer NLP (entity-level sentiment, LLM summarisation) could reduce noise.

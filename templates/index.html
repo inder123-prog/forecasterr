@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Forecast Demo</title>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Market Forecast Demo</title>
     <style>
         :root {
             --primary: #0d6efd;
@@ -100,6 +100,11 @@
 
         select {
             appearance: none;
+        }
+
+        .input-shell select:disabled {
+            cursor: not-allowed;
+            color: #9ca3af;
         }
 
         .helper-text {
@@ -566,10 +571,10 @@
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Stock Price Forecast</h1>
-        <p class="subtitle">Search by company name or ticker, upload a chart, and explore enriched forecasts.</p>
+        <body>
+            <div class="container">
+                <h1>Market Price Forecast</h1>
+                <p class="subtitle">Search by ticker, choose asset type, upload a chart, and explore enriched forecasts for stocks or crypto.</p>
 
         <div class="form-grid">
             <div class="field-group">
@@ -586,7 +591,18 @@
                 <div class="input-shell">
                     <input type="text" id="ticker" name="ticker" placeholder="AAPL">
                 </div>
-                <span class="helper-text">Auto-filled from search, or enter a symbol manually.</span>
+                <span class="helper-text">Auto-filled from search, or enter a symbol manually (e.g., AAPL, BTC-USD).</span>
+            </div>
+
+            <div class="field-group">
+                <label for="assetType">Asset Type</label>
+                <div class="input-shell">
+                    <select id="assetType" name="assetType">
+                        <option value="equity" selected>Equity / ETF</option>
+                        <option value="crypto">Crypto</option>
+                    </select>
+                </div>
+                <span class="helper-text">Select crypto to enable 24/7 forecasts (e.g., BTC-USD, ETH-USD).</span>
             </div>
 
             <div class="field-group">
@@ -598,9 +614,10 @@
                         <option value="GB">United Kingdom (GB)</option>
                         <option value="DE">Germany (DE)</option>
                         <option value="IN">India (IN)</option>
+                        <option value="CRYPTO">Crypto (Global 24/7)</option>
                     </select>
                 </div>
-                <span class="helper-text">Used to apply holiday calendars during forecasting.</span>
+                <span class="helper-text">Used to apply holiday calendars during forecasting (auto-set for crypto).</span>
             </div>
 
             <div class="field-group">
@@ -627,6 +644,8 @@
         const formMessage = document.getElementById('formMessage');
         const resultDiv = document.getElementById('forecastResult');
         const loader = document.getElementById('loader');
+        const assetTypeSelect = document.getElementById('assetType');
+        const marketCountrySelect = document.getElementById('marketCountry');
         let searchDebounceId = null;
         let latestSearchTerm = '';
 
@@ -648,6 +667,26 @@
                 clearSearchResults();
                 companySearchInput.blur();
             }
+        });
+
+        function syncMarketSelector(assetType) {
+            if (!marketCountrySelect) {
+                return;
+            }
+            if ((assetType || '').toLowerCase() === 'crypto') {
+                marketCountrySelect.value = 'CRYPTO';
+                marketCountrySelect.disabled = true;
+            } else {
+                marketCountrySelect.disabled = false;
+                if (marketCountrySelect.value === 'CRYPTO') {
+                    marketCountrySelect.value = 'US';
+                }
+            }
+        }
+
+        syncMarketSelector(assetTypeSelect.value);
+        assetTypeSelect.addEventListener('change', (event) => {
+            syncMarketSelector(event.target.value);
         });
 
         function handleCompanySearch(event) {
@@ -959,6 +998,7 @@
             clearFormMessage();
             const marketCountry = document.getElementById('marketCountry').value;
             const imageFile = document.getElementById('chartImage').files[0];
+            const assetType = assetTypeSelect.value || 'equity';
 
             let ticker = tickerInput.value.trim().toUpperCase();
             if (!ticker) {
@@ -979,6 +1019,7 @@
             const formData = new FormData();
             formData.append('ticker', ticker);
             formData.append('market_country', marketCountry);
+            formData.append('asset_type', assetType);
             if (imageFile) {
                 formData.append('chartImage', imageFile);
             }
@@ -1187,17 +1228,20 @@
                     `;
                 }
 
-                  const dashboardsHtml = renderDashboards(data.stock_dashboards);
-                  const metaItems = [
-                      `<span class="meta-item"><strong>Current Price:</strong> ${displayValue(data.current_price)}</span>`,
-                      `<span class="meta-item"><strong>As of:</strong> ${formatDateTime(data.last_known_date)}</span>`
-                  ];
-                  if (imageSentimentMeta) {
-                      metaItems.push(imageSentimentMeta);
-                  }
-                  const metaHtml = `<div class="forecast-meta">${metaItems.join('')}</div>`;
+                const dashboardsHtml = renderDashboards(data.stock_dashboards);
+                const metaItems = [
+                    `<span class="meta-item"><strong>Current Price:</strong> ${displayValue(data.current_price)}</span>`,
+                    `<span class="meta-item"><strong>As of:</strong> ${formatDateTime(data.last_known_date)}</span>`
+                ];
+                if (data.asset_type) {
+                    metaItems.push(`<span class="meta-item"><strong>Asset Type:</strong> ${formatLabel(data.asset_type)}</span>`);
+                }
+                if (imageSentimentMeta) {
+                    metaItems.push(imageSentimentMeta);
+                }
+                const metaHtml = `<div class="forecast-meta">${metaItems.join('')}</div>`;
 
-                  resultDiv.innerHTML = `
+                resultDiv.innerHTML = `
                       <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
                       ${metaHtml}
                       ${dashboardsHtml}
