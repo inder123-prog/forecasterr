@@ -1070,6 +1070,8 @@
 
                 clearFormMessage();
                 const data = await response.json();
+                const candlestickSummary = data.candlestick_patterns || {};
+                const hasCandlestickFeature = Boolean(data.feature_flags && data.feature_flags.candlestick);
 
                 let imageSentimentMeta = '';
                 if (data.image_analysis_sentiment && data.image_analysis_sentiment !== 'Not Provided') {
@@ -1116,6 +1118,53 @@
                     weekAheadForecastHtml += '<p class="helper-text">Week ahead forecast data not available.</p>';
                 }
                 weekAheadForecastHtml += '</section>';
+
+                  let candlestickHtml = '';
+                  const biasLabel = typeof candlestickSummary.bias === 'string' ? formatLabel(candlestickSummary.bias) : '';
+                  const candlestickSummaryItems = [];
+                  if (biasLabel) {
+                      candlestickSummaryItems.push(`<li><strong>Bias:</strong> ${biasLabel}</li>`);
+                  }
+                  if (candlestickSummary.net_score !== undefined && candlestickSummary.net_score !== null) {
+                      candlestickSummaryItems.push(`<li><strong>Net Score (5-day):</strong> ${formatMetric(candlestickSummary.net_score, 2)}</li>`);
+                  }
+                  if (candlestickSummary.bullish_score !== undefined && candlestickSummary.bullish_score !== null) {
+                      candlestickSummaryItems.push(`<li><strong>Bullish Score:</strong> ${formatMetric(candlestickSummary.bullish_score, 2)}</li>`);
+                  }
+                  if (candlestickSummary.bearish_score !== undefined && candlestickSummary.bearish_score !== null) {
+                      candlestickSummaryItems.push(`<li><strong>Bearish Score:</strong> ${formatMetric(candlestickSummary.bearish_score, 2)}</li>`);
+                  }
+                  if (candlestickSummary.continuation_score !== undefined && candlestickSummary.continuation_score !== null) {
+                      candlestickSummaryItems.push(`<li><strong>Continuation Score:</strong> ${formatMetric(candlestickSummary.continuation_score, 2)}</li>`);
+                  }
+                  const candlestickSummaryList = candlestickSummaryItems.length ? `<ul>${candlestickSummaryItems.join('')}</ul>` : '';
+                  const candlestickSignals = Array.isArray(candlestickSummary.recent_signals)
+                      ? candlestickSummary.recent_signals.slice(-5).reverse()
+                      : [];
+                  let candlestickSignalsHtml = '';
+                  if (candlestickSignals.length > 0) {
+                      const signalItems = candlestickSignals.map((signal) => {
+                          const patternName = signal.pattern || 'Pattern';
+                          const signalDate = signal.date || 'N/A';
+                          const signalType = signal.type ? formatLabel(signal.type) : 'N/A';
+                          const weightValue = signal.weight !== undefined && signal.weight !== null
+                              ? formatMetric(signal.weight, 2)
+                              : 'N/A';
+                          return `<li><strong>${patternName}</strong> on ${signalDate} (${signalType}, weight ${weightValue})</li>`;
+                      }).join('');
+                      candlestickSignalsHtml = `<div><strong>Recent Signals:</strong><ul>${signalItems}</ul></div>`;
+                  }
+                  if (candlestickSummaryList || candlestickSignalsHtml || hasCandlestickFeature) {
+                      candlestickHtml = `
+                          <section>
+                              <h3 class="section-title">Candlestick Pattern Insight</h3>
+                              <div class="highlight-card">
+                                  ${candlestickSummaryList || '<p class="helper-text">No candlestick summary available.</p>'}
+                                  ${candlestickSignalsHtml}
+                              </div>
+                          </section>
+                      `;
+                  }
 
                 const priceDiagnostics = data.price_diagnostics || {};
                 let priceDiagnosticsHtml = '';
@@ -1242,6 +1291,7 @@
                             <div class="highlight-card">
                                 <p><strong>Macro Data Activated:</strong> ${data.feature_flags.macro ? 'Yes' : 'No'}</p>
                                 <p><strong>News Sentiment Activated:</strong> ${data.feature_flags.news ? 'Yes' : 'No'}</p>
+                              <p><strong>Candlestick Patterns Activated:</strong> ${data.feature_flags.candlestick ? 'Yes' : 'No'}</p>
                             </div>
                         </section>
                     `;
@@ -1255,25 +1305,29 @@
                 if (data.asset_type) {
                     metaItems.push(`<span class="meta-item"><strong>Asset Type:</strong> ${formatLabel(data.asset_type)}</span>`);
                 }
+                 if (candlestickSummary.bias && typeof candlestickSummary.bias === 'string' && candlestickSummary.bias.toLowerCase() !== 'neutral') {
+                     metaItems.push(`<span class="meta-item"><strong>Candlestick Bias:</strong> ${formatLabel(candlestickSummary.bias)}</span>`);
+                 }
                 if (imageSentimentMeta) {
                     metaItems.push(imageSentimentMeta);
                 }
                 const metaHtml = `<div class="forecast-meta">${metaItems.join('')}</div>`;
 
-                resultDiv.innerHTML = `
-                      <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
-                      ${metaHtml}
-                      ${dashboardsHtml}
-                      ${featureFlagsHtml}
-                      ${threeDayForecastHtml}
-                      ${weekAheadForecastHtml}
-                      ${priceDiagnosticsHtml}
-                      ${macroSnapshotHtml}
-                      ${fundamentalsHtml}
-                      ${newsSummaryHtml}
-                      ${newsHighlightsHtml}
-                      ${modelRegressorsHtml}
-                  `;
+                 resultDiv.innerHTML = `
+                        <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
+                        ${metaHtml}
+                        ${dashboardsHtml}
+                        ${featureFlagsHtml}
+                        ${candlestickHtml}
+                        ${threeDayForecastHtml}
+                        ${weekAheadForecastHtml}
+                        ${priceDiagnosticsHtml}
+                        ${macroSnapshotHtml}
+                        ${fundamentalsHtml}
+                        ${newsSummaryHtml}
+                        ${newsHighlightsHtml}
+                        ${modelRegressorsHtml}
+                    `;
             } catch (error) {
                 loader.style.display = 'none';
                 resultDiv.style.display = 'none';

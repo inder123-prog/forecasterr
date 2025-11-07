@@ -80,7 +80,7 @@ def analyze_chart_image(image_bytes):
         return None
 
 # --- Stock Data Fetching ---
-def get_stock_data(ticker_symbol, period="5y"):
+def get_stock_data(ticker_symbol, period="5y", include_ohlc=False):
     try:
         logger.info(f"Fetching data for ticker: {ticker_symbol}")
         stock = yf.Ticker(ticker_symbol)
@@ -93,12 +93,16 @@ def get_stock_data(ticker_symbol, period="5y"):
                  logger.warning(f"History empty for {ticker_symbol}, but info found. This might indicate issues.")
                  # This path means we can't train, but it's good to know.
             return None # Return None if no actual OHLCV history
-            
         hist_data.reset_index(inplace=True)
         hist_data['ds'] = pd.to_datetime(hist_data['Date']).dt.tz_localize(None)
         hist_data['y'] = hist_data['Close']
         logger.info(f"Successfully fetched and processed data for {ticker_symbol}")
-        return hist_data[['ds', 'y']]
+        price_df = hist_data[['ds', 'y']].copy()
+        if include_ohlc:
+            ohlc_columns = [col for col in ['ds', 'Open', 'High', 'Low', 'Close', 'Volume'] if col in hist_data.columns]
+            ohlc_df = hist_data[ohlc_columns].copy()
+            return price_df, ohlc_df
+        return price_df
     except Exception as e:
         logger.error(f"Error fetching data for {ticker_symbol}: {e}", exc_info=True)
         return None
@@ -263,15 +267,20 @@ def forecast_stock_with_image():
                 logger.error(f"Error processing uploaded image: {e}", exc_info=True)
                 image_sentiment_for_response = "Error Processing Image"
                 # image_trend remains None
-        
-        stock_data_df = get_stock_data(ticker_symbol)
+        stock_data_response = get_stock_data(ticker_symbol, include_ohlc=True)
+        if stock_data_response is None:
+            logger.error(f"Failed to fetch historical data for {ticker_symbol}. Cannot proceed with forecast.")
+            return jsonify({"error": f"Could not fetch historical data for {ticker_symbol}. It might be an invalid ticker or have no data."}), 404
+        stock_data_df, stock_ohlc_df = stock_data_response
         if stock_data_df is None or stock_data_df.empty:
             logger.error(f"Failed to fetch historical data for {ticker_symbol}. Cannot proceed with forecast.")
             return jsonify({"error": f"Could not fetch historical data for {ticker_symbol}. It might be an invalid ticker or have no data."}), 404
+        if stock_ohlc_df is None:
+            stock_ohlc_df = pd.DataFrame()
 
         # We need to forecast enough periods to find 3 trading days and 1 week trading day
-        days_for_daily_forecast_periods = 10 
-        days_for_week_ahead_periods = 15   
+        days_for_daily_forecast_periods = 10
+        days_for_week_ahead_periods = 15
 
         enrichment_payload = {
             "training_df": stock_data_df.copy(),
@@ -283,7 +292,9 @@ def forecast_stock_with_image():
             "fundamentals": {},
             "price_diagnostics": {},
             "has_macro_features": False,
-            "has_news_features": False
+            "has_news_features": False,
+            "candlestick_summary": {},
+            "has_candlestick_features": False
         }
         training_input_df = stock_data_df.copy()
         regressor_columns = []
@@ -294,7 +305,8 @@ def forecast_stock_with_image():
                 ticker_symbol=ticker_symbol,
                 price_df=stock_data_df.copy(),
                 forecast_extension_days=max(days_for_daily_forecast_periods, days_for_week_ahead_periods) + 30,
-                market_country=market_country
+                market_country=market_country,
+                price_ohlc_df=stock_ohlc_df
             )
             enrichment_payload.update({
                 key: built_enrichment.get(key, enrichment_payload.get(key))
@@ -306,6 +318,20 @@ def forecast_stock_with_image():
             future_regressors = built_enrichment.get("future_regressors")
         except Exception as enrichment_error:
             logger.error(f"Failed to build enrichment payload for {ticker_symbol}: {enrichment_error}", exc_info=True)
+
+        candlestick_summary = enrichment_payload.get("candlestick_summary", {}) or {}
+        pattern_bias = str(candlestick_summary.get("bias", "neutral")).lower()
+        pattern_buy_adjust = 0.0
+        pattern_sell_adjust = 0.0
+        if pattern_bias == "bullish":
+            pattern_buy_adjust = -0.003
+            pattern_sell_adjust = 0.002
+        elif pattern_bias == "bearish":
+            pattern_buy_adjust = 0.003
+            pattern_sell_adjust = -0.002
+        elif pattern_bias == "sideways":
+            pattern_buy_adjust = 0.001
+            pattern_sell_adjust = 0.001
 
         current_price = stock_data_df['y'].iloc[-1]
         last_date = stock_data_df['ds'].iloc[-1]
@@ -332,6 +358,11 @@ def forecast_stock_with_image():
             holiday_years_for_check = list(range(min_hist_year_check, max_hist_year_check + 1))
             custom_holidays_dates = get_market_holidays(years=holiday_years_for_check, country=market_country)['ds'].tolist()
 
+        base_buy_threshold = 0.01
+        base_sell_threshold = 0.01
+        daily_buy_threshold = max(0.003, base_buy_threshold + pattern_buy_adjust)
+        daily_sell_threshold = max(0.003, base_sell_threshold + pattern_sell_adjust)
+
         trading_days_found = 0
         future_calendar_dates_in_forecast = forecast_output_daily_df[forecast_output_daily_df['ds'] > last_date]['ds']
 
@@ -346,21 +377,44 @@ def forecast_stock_with_image():
                 price = round(prediction_row['yhat'].iloc[0], 2)
                 lower = round(prediction_row['yhat_lower'].iloc[0], 2)
                 upper = round(prediction_row['yhat_upper'].iloc[0], 2)
-                recommendation = "Hold/Neutral" # Add full recommendation logic
-                image_factor = 0
-                if image_trend == "up": image_factor = 0.002
-                elif image_trend == "down": image_factor = -0.002
+                recommendation = "Hold/Neutral"
+
+                image_factor = 0.0
+                if image_trend == "up":
+                    image_factor = 0.002
+                elif image_trend == "down":
+                    image_factor = -0.002
+
                 if isinstance(price, (int, float)) and isinstance(current_price, (int, float)) and current_price > 0:
-                    if price > current_price * (1 + 0.01 + image_factor): recommendation = "Consider Buying"
-                    elif price < current_price * (1 - 0.01 + image_factor): recommendation = "Consider Selling/Not Buying"
+                    upper_threshold = current_price * (1 + daily_buy_threshold + image_factor)
+                    lower_threshold = current_price * (1 - daily_sell_threshold + image_factor)
+                    if price > upper_threshold:
+                        recommendation = "Consider Buying"
+                    elif price < lower_threshold:
+                        recommendation = "Consider Selling/Not Buying"
+
+                bias_hint = candlestick_summary.get("bias")
+                if isinstance(bias_hint, str) and bias_hint.lower() not in {"", "neutral"}:
+                    recommendation = f"{recommendation} (candlestick bias: {bias_hint.capitalize()})"
 
                 three_day_forecast_results.append({
-                    "date": potential_trading_date.strftime('%Y-%m-%d'), "price": price,
-                    "lower_bound": lower, "upper_bound": upper, "recommendation": recommendation
+                    "date": potential_trading_date.strftime('%Y-%m-%d'),
+                    "price": price,
+                    "lower_bound": lower,
+                    "upper_bound": upper,
+                    "recommendation": recommendation,
+                    "candlestick_bias": candlestick_summary.get("bias"),
+                    "candlestick_net_score": candlestick_summary.get("net_score")
                 })
                 trading_days_found += 1
-                if trading_days_found >= 3: break
+                if trading_days_found >= 3:
+                    break
         
+        base_week_buy_threshold = 0.02
+        base_week_sell_threshold = 0.02
+        weekly_buy_threshold = max(0.01, base_week_buy_threshold + pattern_buy_adjust * 1.5)
+        weekly_sell_threshold = max(0.01, base_week_sell_threshold + pattern_sell_adjust * 1.5)
+
         target_week_ahead_search_date = last_date + timedelta(days=7)
         for pot_wk_date in forecast_output_weekly_df[forecast_output_weekly_df['ds'] >= target_week_ahead_search_date]['ds']:
             if (not is_crypto) and pot_wk_date.dayofweek >= 5:
@@ -371,19 +425,33 @@ def forecast_stock_with_image():
             wk_pred_row = forecast_output_weekly_df[forecast_output_weekly_df['ds'] == pot_wk_date].head(1)
             if not wk_pred_row.empty:
                 wk_price = round(wk_pred_row['yhat'].iloc[0], 2)
-                wk_rec = "Hold/Neutral" # Add full recommendation logic
-                image_factor_wk = 0
-                if image_trend == "up": image_factor_wk = 0.004 # different factor for week
-                elif image_trend == "down": image_factor_wk = -0.004
+                wk_rec = "Hold/Neutral"
+                image_factor_wk = 0.0
+                if image_trend == "up":
+                    image_factor_wk = 0.004
+                elif image_trend == "down":
+                    image_factor_wk = -0.004
+
                 if isinstance(wk_price, (int, float)) and isinstance(current_price, (int, float)) and current_price > 0:
-                    if wk_price > current_price * (1 + 0.02 + image_factor_wk): wk_rec = "Consider Buying (Week Ahead)"
-                    elif wk_price < current_price * (1 - 0.02 + image_factor_wk): wk_rec = "Consider Selling/Not Buying (Week Ahead)"
+                    upper_threshold_week = current_price * (1 + weekly_buy_threshold + image_factor_wk)
+                    lower_threshold_week = current_price * (1 - weekly_sell_threshold + image_factor_wk)
+                    if wk_price > upper_threshold_week:
+                        wk_rec = "Consider Buying (Week Ahead)"
+                    elif wk_price < lower_threshold_week:
+                        wk_rec = "Consider Selling/Not Buying (Week Ahead)"
+
+                bias_hint_week = candlestick_summary.get("bias")
+                if isinstance(bias_hint_week, str) and bias_hint_week.lower() not in {"", "neutral"}:
+                    wk_rec = f"{wk_rec} (candlestick bias: {bias_hint_week.capitalize()})"
 
                 week_ahead_pred_details = {
-                    "date": pot_wk_date.strftime('%Y-%m-%d'), "price": wk_price,
-                    "lower_bound": round(wk_pred_row['yhat_lower'].iloc[0], 2), 
+                    "date": pot_wk_date.strftime('%Y-%m-%d'),
+                    "price": wk_price,
+                    "lower_bound": round(wk_pred_row['yhat_lower'].iloc[0], 2),
                     "upper_bound": round(wk_pred_row['yhat_upper'].iloc[0], 2),
-                    "recommendation": wk_rec
+                    "recommendation": wk_rec,
+                    "candlestick_bias": candlestick_summary.get("bias"),
+                    "candlestick_net_score": candlestick_summary.get("net_score")
                 }
             break 
         
@@ -397,9 +465,13 @@ def forecast_stock_with_image():
             dashboard_views = {}
             logger.error(f"Failed to build dashboard snapshots for {ticker_symbol}: {dashboard_error}", exc_info=True)
 
-        logger.info(f"Forecast for {ticker_symbol} (Image Trend: {str(image_trend)}, Market: {market_country}): Current ${current_price_display} (as of {last_date_display}), "
-                    f"3-Day Forecast: {[(d['date'], d['price']) for d in three_day_forecast_results]}, "
-                    f"Week Ahead Prediction ({week_ahead_pred_details.get('date', 'N/A')}): ${week_ahead_price_display}")
+        logger.info(
+            f"Forecast for {ticker_symbol} (Image Trend: {str(image_trend)}, Market: {market_country}, "
+            f"Candlestick Bias: {candlestick_summary.get('bias', 'neutral')}): "
+            f"Current ${current_price_display} (as of {last_date_display}), "
+            f"3-Day Forecast: {[(d['date'], d['price']) for d in three_day_forecast_results]}, "
+            f"Week Ahead Prediction ({week_ahead_pred_details.get('date', 'N/A')}): ${week_ahead_price_display}"
+        )
 
         regressor_columns_for_response = list(regressor_columns)
         if image_trend in ["up", "down", "neutral"] and 'image_sentiment' not in regressor_columns_for_response:
@@ -416,14 +488,17 @@ def forecast_stock_with_image():
             "macro_snapshot": enrichment_payload.get("macro_snapshot", {}),
             "news_sentiment_summary": enrichment_payload.get("news_sentiment_summary", {}),
             "news_highlights": enrichment_payload.get("news_highlights", []),
-            "fundamentals": enrichment_payload.get("fundamentals", {}),
-            "feature_flags": {
-                "macro": enrichment_payload.get("has_macro_features", False),
-                "news": enrichment_payload.get("has_news_features", False)
-            },
-            "model_regressors": regressor_columns_for_response,
-            "stock_dashboards": dashboard_views,
-            "asset_type": "crypto" if is_crypto else "equity"
+          "fundamentals": enrichment_payload.get("fundamentals", {}),
+          "feature_flags": {
+              "macro": enrichment_payload.get("has_macro_features", False),
+              "news": enrichment_payload.get("has_news_features", False),
+              "candlestick": enrichment_payload.get("has_candlestick_features", False)
+          },
+          "candlestick_patterns": candlestick_summary,
+          "candlestick_feature_columns": enrichment_payload.get("candlestick_feature_columns", []),
+          "model_regressors": regressor_columns_for_response,
+          "stock_dashboards": dashboard_views,
+          "asset_type": "crypto" if is_crypto else "equity"
         }
 
         return jsonify(response_payload)

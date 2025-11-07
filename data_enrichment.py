@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from candlestick_patterns import analyze_candlestick_patterns
 
 try:
     from fredapi import Fred  # type: ignore
@@ -487,6 +488,7 @@ def build_enriched_dataset(
     price_df: pd.DataFrame,
     forecast_extension_days: int,
     market_country: str = "US",
+    price_ohlc_df: Optional[pd.DataFrame] = None,
 ) -> Dict:
     """Build enriched training data with macro indicators, news sentiment, and fundamentals."""
 
@@ -505,24 +507,46 @@ def build_enriched_dataset(
         ticker_symbol, start_date, end_date
     )
 
-    feature_master = pd.DataFrame({"ds": pd.date_range(start=start_date, end=end_date, freq="D")})
+    try:
+        candlestick_payload = analyze_candlestick_patterns(price_ohlc_df)
+    except Exception as candlestick_error:
+        logger.warning("Candlestick analysis failed for %s: %s", ticker_symbol, candlestick_error)
+        candlestick_payload = analyze_candlestick_patterns(pd.DataFrame())
+
+    candlestick_features_df = candlestick_payload.get("pattern_features", pd.DataFrame())
+    candlestick_summary = candlestick_payload.get("summary", {})
+    candlestick_feature_columns: List[str] = []
+    has_candlestick_features = False
+
+    feature_master_base = pd.DataFrame({"ds": pd.date_range(start=start_date, end=end_date, freq="D")})
     if not macro_df.empty:
-        feature_master = feature_master.merge(macro_df, on="ds", how="left")
+        feature_master_base = feature_master_base.merge(macro_df, on="ds", how="left")
     if not news_df.empty:
-        feature_master = feature_master.merge(news_df, on="ds", how="left")
+        feature_master_base = feature_master_base.merge(news_df, on="ds", how="left")
 
-    # Fill macro indicators with forward/backward fill, news sentiment with zeros when missing
-    macro_cols = [col for col in feature_master.columns if col not in {"ds"}]
-    if macro_cols:
-        for col in macro_cols:
+    base_cols = [col for col in feature_master_base.columns if col != "ds"]
+    if base_cols:
+        for col in base_cols:
             if col.startswith("news") or col.endswith("_sentiment"):
-                feature_master[col] = feature_master[col].fillna(0.0)
+                feature_master_base[col] = feature_master_base[col].fillna(0.0)
             else:
-                feature_master[col] = feature_master[col].ffill().bfill()
+                feature_master_base[col] = feature_master_base[col].ffill().bfill()
 
-    feature_master, feature_stats = _standardize_features(
-        feature_master, [col for col in feature_master.columns if col != "ds"]
+    feature_master_scaled, feature_stats = _standardize_features(
+        feature_master_base, [col for col in feature_master_base.columns if col != "ds"]
     )
+
+    feature_master = feature_master_scaled.copy()
+    if not candlestick_features_df.empty:
+        candlestick_features_df = candlestick_features_df.copy()
+        candlestick_features_df["ds"] = pd.to_datetime(candlestick_features_df["ds"]).dt.tz_localize(None)
+        candlestick_features_df = candlestick_features_df.drop_duplicates(subset=["ds"], keep="last")
+        candlestick_feature_columns = [col for col in candlestick_features_df.columns if col != "ds"]
+        feature_master = feature_master.merge(candlestick_features_df, on="ds", how="left")
+        if candlestick_feature_columns:
+            feature_master[candlestick_feature_columns] = feature_master[candlestick_feature_columns].fillna(0.0)
+            feature_master[candlestick_feature_columns] = feature_master[candlestick_feature_columns].astype(float)
+            has_candlestick_features = True
 
     # Merge with pricing data
     training_df = price_df.merge(feature_master, on="ds", how="left")
@@ -531,6 +555,8 @@ def build_enriched_dataset(
 
     # Build future regressors table
     future_regressors = feature_master.copy()
+    if candlestick_feature_columns:
+        future_regressors[candlestick_feature_columns] = future_regressors[candlestick_feature_columns].fillna(0.0)
 
     fundamentals_fetcher = CompanyFundamentalsFetcher()
     fundamentals_snapshot = fundamentals_fetcher.get_fundamentals(ticker_symbol)
@@ -581,6 +607,9 @@ def build_enriched_dataset(
         "price_diagnostics": price_metrics_serialized,
         "has_macro_features": not macro_df.empty,
         "has_news_features": not news_df.empty,
+        "candlestick_summary": candlestick_summary or {},
+        "has_candlestick_features": has_candlestick_features,
+        "candlestick_feature_columns": candlestick_feature_columns,
     }
     return enriched_payload
 
