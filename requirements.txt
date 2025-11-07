@@ -1,0 +1,8 @@
+Flask
+flask_cors
+yfinance
+pandas
+prophet
+Pillow
+holidays
+gunicorn

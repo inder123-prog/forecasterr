@@ -8,6 +8,7 @@ import logging
 from PIL import Image
 import io
 import holidays as pyholidays # For public holidays
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -291,4 +292,6 @@ def forecast_stock_with_image():
         return jsonify({"error": "An internal server error occurred. Please check logs."}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() in {"1", "true", "yes"}
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
