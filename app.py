@@ -21,6 +21,21 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+_DEFAULT_YAHOO_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/"
+}
+
+
+def _build_yahoo_headers():
+    headers = dict(_DEFAULT_YAHOO_HEADERS)
+    override_ua = os.environ.get("YAHOO_FINANCE_USER_AGENT")
+    if override_ua:
+        headers["User-Agent"] = override_ua
+    return headers
+
 # --- Helper function to get holidays for Prophet ---
 def get_market_holidays(years, country='US'):
     normalized_country = (country or '').upper()
@@ -589,7 +604,12 @@ def search_companies_by_query(query, region='US', lang='en-US', max_results=6):
         "quotesCount": max_results,
         "newsCount": 0
     }
-    response = requests.get(search_url, params=params, timeout=5)
+    response = requests.get(
+        search_url,
+        params=params,
+        timeout=5,
+        headers=_build_yahoo_headers()
+    )
     response.raise_for_status()
     payload = response.json()
 
