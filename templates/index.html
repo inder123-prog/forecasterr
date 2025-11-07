@@ -800,11 +800,30 @@
             showFormMessage('');
         }
 
-        function displayValue(value, prefix = '$', suffix = '') {
+        function getCurrencySymbol() {
+            if (assetTypeSelect && assetTypeSelect.value && assetTypeSelect.value.toLowerCase() === 'crypto') {
+                return '';
+            }
+            const marketValue = marketCountrySelect && marketCountrySelect.value
+                ? marketCountrySelect.value.toUpperCase()
+                : '';
+            const symbolMap = {
+                'IN': '₹',
+                'GB': '£',
+                'UK': '£',
+                'CA': 'C$',
+                'DE': '€',
+                'US': '$'
+            };
+            return symbolMap[marketValue] || '$';
+        }
+
+        function displayValue(value, prefix, suffix = '') {
             if (value === null || value === undefined || value === 'N/A' || value === 'undefined') {
                 return 'N/A';
             }
-            return `${prefix}${value}${suffix}`;
+            const resolvedPrefix = prefix !== undefined ? prefix : getCurrencySymbol();
+            return `${resolvedPrefix || ''}${value}${suffix}`;
         }
 
         function formatMetric(value, decimals = 2) {
