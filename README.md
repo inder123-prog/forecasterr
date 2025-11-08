@@ -34,6 +34,9 @@ pip install -r requirements.txt
 |----------|----------|-------------|
 | `FRED_API_KEY` | Recommended | Enables macro indicator fetches from FRED. Sign up for a free key at https://fred.stlouisfed.org. Without it, forecasts still run but macro regressors are disabled. |
 | `NEWSAPI_KEY` | Optional | Augments company news with the NewsAPI Everything endpoint. Without it, the app falls back to Yahoo Finance headlines only. |
+| `TOP_TECH_PAGE_PASSWORD` | Optional | Plaintext password that unlocks the Top Tech Stocks leaderboard (`tech-alpha-access` by default). |
+| `TOP_TECH_PAGE_PASSWORD_HASH` | Optional | Werkzeug-compatible hash for the leaderboard password. Takes precedence over `TOP_TECH_PAGE_PASSWORD` when provided. |
+| `TOP_TECH_TICKERS` | Optional | Comma-separated list of tickers to override the default US technology universe used in the leaderboard. |
 
 Set variables locally (example):
 
@@ -61,7 +64,21 @@ Navigate to `http://localhost:5001` and request a forecast:
 
 ---
 
-### 4. Enriched Feature Engineering
+### 4. Top Tech Stock Leaderboard
+
+Unlock the password-protected leaderboard at [`/top-tech`](http://localhost:5001/top-tech) to surface the strongest U.S. technology stocks for the upcoming sessions. The composite score blends:
+
+- 14-day news sentiment and headline velocity (VADER on Yahoo Finance, optionally NewsAPI)
+- Price momentum across 5-day, 1-month, and 3-month horizons plus realised volatility
+- Point-in-time valuation and risk signals (market cap, forward P/E, PEG, beta)
+
+Set a shared passcode through `TOP_TECH_PAGE_PASSWORD` (or its hashed companion `TOP_TECH_PAGE_PASSWORD_HASH`). Override the default tech universe via `TOP_TECH_TICKERS` when you need to include or exclude specific tickers.
+
+The frontend calls `/api/top-tech-stocks` when you press **Generate Recommendations**, returning the ranked list, factor-level contributions, and recent news drivers for each pick.
+
+---
+
+### 5. Enriched Feature Engineering
 
 `data_enrichment.py` orchestrates add-on data sources:
 
@@ -73,13 +90,13 @@ All regressors are standardised before being fed into Prophet. Future dates inhe
 
 ---
 
-### 5. Crypto Forecasting Notes
+### 6. Crypto Forecasting Notes
 
 - Select the `Crypto` asset type (or the `Crypto (Global 24/7)` market) to ensure the forecast runs without weekend or holiday filters.
 - Crypto dashboards and forecasts use the same Prophet workflow. Fundamentals may be sparse—Yahoo Finance does not expose valuation ratios for most digital assets.
 - Macro and news enrichment continues to run; when specialised crypto macro indicators are needed, extend `data_enrichment.py` with alternative data sources.
 
-### 6. Limitations & Next Steps
+### 7. Limitations & Next Steps
 
 - Without a FRED key the macro-regressor benefits are disabled (flagged in the UI); consider enforcing the key or caching recent pulls.
 - News sentiment currently relies on headline text; richer NLP (entity-level sentiment, LLM summarisation) could reduce noise.
