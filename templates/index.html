@@ -920,29 +920,36 @@
           <div class="feature-toggle-card">
               <h3>Feature Flags</h3>
               <p class="feature-toggle-subtitle">Toggle optional enrichment signals before generating your forecast.</p>
-              <div class="feature-toggle-grid">
-                  <label class="feature-toggle">
-                      <input type="checkbox" id="toggleMacro" checked>
-                      <div>
-                          <span class="toggle-label">Macro Data</span>
-                          <span class="toggle-description">Blend FRED macro indicators into the Prophet model.</span>
-                      </div>
-                  </label>
-                  <label class="feature-toggle">
-                      <input type="checkbox" id="toggleNews" checked>
-                      <div>
-                          <span class="toggle-label">News Sentiment</span>
-                          <span class="toggle-description">Aggregate recent headlines and sentiment buckets.</span>
-                      </div>
-                  </label>
-                  <label class="feature-toggle">
-                      <input type="checkbox" id="toggleCandlestick" checked>
-                      <div>
-                          <span class="toggle-label">Candlestick Patterns</span>
-                          <span class="toggle-description">Score recent OHLC data for bullish/bearish signals.</span>
-                      </div>
-                  </label>
-              </div>
+                <div class="feature-toggle-grid">
+                    <label class="feature-toggle">
+                        <input type="checkbox" id="toggleMacro" checked>
+                        <div>
+                            <span class="toggle-label">Macro Data</span>
+                            <span class="toggle-description">Blend FRED macro indicators into the Prophet model.</span>
+                        </div>
+                    </label>
+                    <label class="feature-toggle">
+                        <input type="checkbox" id="toggleNews" checked>
+                        <div>
+                            <span class="toggle-label">News Sentiment</span>
+                            <span class="toggle-description">Aggregate recent headlines and sentiment buckets.</span>
+                        </div>
+                    </label>
+                    <label class="feature-toggle">
+                        <input type="checkbox" id="toggleFundamental" checked>
+                        <div>
+                            <span class="toggle-label">Fundamental Metrics</span>
+                            <span class="toggle-description">Inject valuation ratios and quarterly trends from filings.</span>
+                        </div>
+                    </label>
+                    <label class="feature-toggle">
+                        <input type="checkbox" id="toggleCandlestick" checked>
+                        <div>
+                            <span class="toggle-label">Candlestick Patterns</span>
+                            <span class="toggle-description">Score recent OHLC data for bullish/bearish signals.</span>
+                        </div>
+                    </label>
+                </div>
           </div>
 
         <div id="formMessage" class="form-message"></div>
@@ -966,6 +973,7 @@
         const marketCountrySelect = document.getElementById('marketCountry');
           const toggleMacro = document.getElementById('toggleMacro');
           const toggleNews = document.getElementById('toggleNews');
+          const toggleFundamental = document.getElementById('toggleFundamental');
           const toggleCandlestick = document.getElementById('toggleCandlestick');
         const logoutBtn = document.getElementById('logoutBtn');
         let searchDebounceId = null;
@@ -1203,11 +1211,12 @@
             }
         }
 
-          const FEATURE_FLAG_LABELS = {
-              macro: 'Macro Data',
-              news: 'News Sentiment',
-              candlestick: 'Candlestick Patterns'
-          };
+        const FEATURE_FLAG_LABELS = {
+            macro: 'Macro Data',
+            news: 'News Sentiment',
+            fundamental: 'Fundamental Metrics',
+            candlestick: 'Candlestick Patterns'
+        };
 
           const DASHBOARD_CONFIG = [
             { key: 'live', title: 'Live Overview', description: 'Intraday pulse and latest move', accent: 'accent-live' },
@@ -1533,15 +1542,18 @@
             formData.append('ticker', ticker);
             formData.append('market_country', marketCountry);
             formData.append('asset_type', assetType);
-              if (toggleMacro) {
-                  formData.append('enable_macro', toggleMacro.checked ? 'true' : 'false');
-              }
-              if (toggleNews) {
-                  formData.append('enable_news', toggleNews.checked ? 'true' : 'false');
-              }
-              if (toggleCandlestick) {
-                  formData.append('enable_candlestick', toggleCandlestick.checked ? 'true' : 'false');
-              }
+            if (toggleMacro) {
+                formData.append('enable_macro', toggleMacro.checked ? 'true' : 'false');
+            }
+            if (toggleNews) {
+                formData.append('enable_news', toggleNews.checked ? 'true' : 'false');
+            }
+            if (toggleFundamental) {
+                formData.append('enable_fundamental', toggleFundamental.checked ? 'true' : 'false');
+            }
+            if (toggleCandlestick) {
+                formData.append('enable_candlestick', toggleCandlestick.checked ? 'true' : 'false');
+            }
             if (imageFile) {
                 formData.append('chartImage', imageFile);
             }

@@ -668,6 +668,7 @@ def build_enriched_dataset(
     price_ohlc_df: Optional[pd.DataFrame] = None,
     enable_macro: bool = True,
     enable_news: bool = True,
+    enable_fundamental: bool = True,
     enable_candlestick: bool = True,
 ) -> Dict:
     """Build enriched training data with macro indicators, news sentiment, and fundamentals."""
@@ -679,21 +680,23 @@ def build_enriched_dataset(
     start_date = (price_df["ds"].min() - pd.Timedelta(days=400)).to_pydatetime()
     end_date = (price_df["ds"].max() + pd.Timedelta(days=buffer_days)).to_pydatetime()
 
-    fundamentals_fetcher = CompanyFundamentalsFetcher()
+    fundamentals_fetcher: Optional[CompanyFundamentalsFetcher] = None
     fundamental_features_df = pd.DataFrame(columns=["ds"])
     fundamental_feature_original_columns: List[str] = []
-    try:
-        fundamental_features_df = fundamentals_fetcher.get_fundamental_timeseries(
-            ticker_symbol, start_date, end_date
-        )
-        if not fundamental_features_df.empty:
-            fundamental_feature_original_columns = [
-                col for col in fundamental_features_df.columns if col != "ds"
-            ]
-    except Exception as fundamentals_error:
-        logger.warning("Fundamental enrichment failed for %s: %s", ticker_symbol, fundamentals_error)
-        fundamental_features_df = pd.DataFrame(columns=["ds"])
-        fundamental_feature_original_columns = []
+    if enable_fundamental:
+        fundamentals_fetcher = CompanyFundamentalsFetcher()
+        try:
+            fundamental_features_df = fundamentals_fetcher.get_fundamental_timeseries(
+                ticker_symbol, start_date, end_date
+            )
+            if not fundamental_features_df.empty:
+                fundamental_feature_original_columns = [
+                    col for col in fundamental_features_df.columns if col != "ds"
+                ]
+        except Exception as fundamentals_error:
+            logger.warning("Fundamental enrichment failed for %s: %s", ticker_symbol, fundamentals_error)
+            fundamental_features_df = pd.DataFrame(columns=["ds"])
+            fundamental_feature_original_columns = []
 
     macro_df = pd.DataFrame(columns=["ds"])
     if enable_macro:
@@ -742,12 +745,14 @@ def build_enriched_dataset(
     feature_master_scaled, feature_stats = _standardize_features(
         feature_master_base, [col for col in feature_master_base.columns if col != "ds"]
     )
-    fundamental_feature_regressors: List[str] = [
-        feature_stats[col]["scaled_name"]
-        for col in fundamental_feature_original_columns
-        if col in feature_stats
-    ]
-    has_fundamental_features = bool(fundamental_feature_regressors)
+    fundamental_feature_regressors: List[str] = []
+    if enable_fundamental:
+        fundamental_feature_regressors = [
+            feature_stats[col]["scaled_name"]
+            for col in fundamental_feature_original_columns
+            if col in feature_stats
+        ]
+    has_fundamental_features = enable_fundamental and bool(fundamental_feature_regressors)
 
     feature_master = feature_master_scaled.copy()
     if enable_candlestick and not candlestick_features_df.empty:
@@ -771,7 +776,13 @@ def build_enriched_dataset(
     if candlestick_feature_columns:
         future_regressors[candlestick_feature_columns] = future_regressors[candlestick_feature_columns].fillna(0.0)
 
-    fundamentals_snapshot = fundamentals_fetcher.get_fundamentals(ticker_symbol)
+    fundamentals_snapshot: Dict = {}
+    if enable_fundamental and fundamentals_fetcher is not None:
+        try:
+            fundamentals_snapshot = fundamentals_fetcher.get_fundamentals(ticker_symbol)
+        except Exception as fundamentals_error:
+            logger.warning("Failed to fetch fundamentals snapshot for %s: %s", ticker_symbol, fundamentals_error)
+            fundamentals_snapshot = {}
 
     price_metrics = _build_price_diagnostics(price_df)
 
@@ -829,7 +840,7 @@ def build_enriched_dataset(
             "macro": enable_macro,
             "news": enable_news,
             "candlestick": enable_candlestick,
-            "fundamental": True,
+            "fundamental": enable_fundamental,
         },
     }
     return enriched_payload

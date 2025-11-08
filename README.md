@@ -60,8 +60,9 @@ Navigate to `http://localhost:5001` and request a forecast:
 1. Enter the ticker (e.g. `AAPL` or `BTC-USD`)
 2. Choose the asset type. For crypto, the holiday selector auto-locks to a 24/7 calendar.
 3. Choose market/holiday calendar (stocks only)
-3. (Optional) Upload a chart image for additional sentiment weighting
-4. Submit and review the forecast + enriched context (macro snapshot, fundamentals, news sentiment, recent price diagnostics, model regressors)
+4. (Optional) Upload a chart image for additional sentiment weighting
+5. Toggle the feature flags card to decide which enrichments to run (macro, news, fundamentals, candlestick)
+6. Submit and review the forecast + enriched context (macro snapshot, fundamentals, news sentiment, recent price diagnostics, model regressors)
 
 ---
 

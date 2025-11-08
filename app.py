@@ -652,6 +652,7 @@ def forecast_stock_with_image():
 
         enable_macro_features = (request.form.get('enable_macro', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
         enable_news_features = (request.form.get('enable_news', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
+        enable_fundamental_features = (request.form.get('enable_fundamental', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
         enable_candlestick_features = (request.form.get('enable_candlestick', 'true').strip().lower() in {'true', '1', 'yes', 'on'})
 
         if not ticker_symbol or ticker_symbol == 'N/A':
@@ -728,6 +729,7 @@ def forecast_stock_with_image():
                 price_ohlc_df=stock_ohlc_df,
                 enable_macro=enable_macro_features,
                 enable_news=enable_news_features,
+                enable_fundamental=enable_fundamental_features,
                 enable_candlestick=enable_candlestick_features
             )
             enrichment_payload.update({
@@ -961,8 +963,11 @@ def forecast_stock_with_image():
                 feature_flag_notes["candlestick"] = "Candlestick patterns could not be derived (insufficient OHLC data)."
         else:
             feature_flag_notes["candlestick"] = "Candlestick analytics disabled for this request."
-        if not enrichment_payload.get("has_fundamental_features", False):
-            feature_flag_notes["fundamental"] = "Fundamental filings unavailable or incomplete for regression enrichment."
+        if enable_fundamental_features:
+            if not enrichment_payload.get("has_fundamental_features", False):
+                feature_flag_notes["fundamental"] = "Fundamental filings unavailable or incomplete for regression enrichment."
+        else:
+            feature_flag_notes["fundamental"] = "Fundamental data disabled for this request."
 
         response_payload["feature_flag_notes"] = feature_flag_notes
 
