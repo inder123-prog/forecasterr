@@ -444,6 +444,84 @@
               padding-left: 2px;
           }
 
+          .ai-trading-card {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+          }
+
+          .ai-action-badge {
+              align-self: flex-start;
+              padding: 6px 14px;
+              border-radius: 999px;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: 0.6px;
+              background: rgba(13, 110, 253, 0.12);
+              color: var(--primary);
+              border: 1px solid rgba(13, 110, 253, 0.35);
+          }
+
+          .ai-action-badge.buy {
+              background: rgba(34, 197, 94, 0.18);
+              border-color: rgba(34, 197, 94, 0.35);
+              color: #0f8a49;
+          }
+
+          .ai-action-badge.sell {
+              background: rgba(239, 68, 68, 0.18);
+              border-color: rgba(239, 68, 68, 0.35);
+              color: #c1362f;
+          }
+
+          .ai-trading-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+              gap: 12px;
+          }
+
+          .ai-trading-metric {
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+              padding: 12px 14px;
+              border-radius: 12px;
+              border: 1px solid rgba(210, 220, 235, 0.6);
+              background: rgba(248, 250, 252, 0.9);
+          }
+
+          .ai-trading-metric span {
+              font-size: 0.85rem;
+              color: var(--text-muted);
+          }
+
+          .ai-trading-metric strong {
+              font-size: 1rem;
+              color: var(--text-main);
+          }
+
+          .ai-reasoning-list,
+          .ai-backtest-list {
+              margin: 0;
+              padding-left: 20px;
+              color: var(--text-muted);
+          }
+
+          .ai-reasoning-list li,
+          .ai-backtest-list li {
+              margin-bottom: 6px;
+          }
+
+          .ai-reasoning-list li strong {
+              color: var(--text-main);
+          }
+
+          .ai-trading-note {
+              font-size: 0.82rem;
+              color: var(--text-muted);
+              padding-left: 2px;
+          }
+
         .highlight-card ul {
             margin: 12px 0 0 0;
             padding-left: 18px;
@@ -1097,6 +1175,13 @@
             return `${numericValue.toFixed(decimals)}%`;
         }
 
+          function formatOptionalPercent(value, decimals = 2) {
+              if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                  return 'N/A';
+              }
+              return formatPercentFromDecimal(Number(value), decimals);
+          }
+
         function formatLabel(label) {
             return label
                 .replace(/_/g, ' ')
@@ -1270,6 +1355,141 @@
                 </section>
             `;
         }
+
+          function renderAITradingSection(aiTrading) {
+              if (!aiTrading || typeof aiTrading !== 'object') {
+                  return '';
+              }
+
+              if ((aiTrading.status || '').toLowerCase() !== 'ready') {
+                  const reason = aiTrading.reason || 'AI trading insights are unavailable for this request.';
+                  return `
+                      <section>
+                          <h3 class="section-title">AI Trading Strategy</h3>
+                          <div class="highlight-card">
+                              <p class="helper-text">${reason}</p>
+                          </div>
+                      </section>
+                  `;
+              }
+
+              const signal = aiTrading.latest_signal || {};
+              const actionRaw = (signal.action || 'hold').toLowerCase();
+              const actionLabel = formatLabel(signal.action || 'hold');
+              const probabilityUp = formatOptionalPercent(signal.probability_up, 1);
+              const probabilityDown = formatOptionalPercent(signal.probability_down, 1);
+              const confidence = formatOptionalPercent(signal.confidence, 1);
+              const expectedReturn = formatOptionalPercent(signal.expected_daily_return, 2);
+              const positionSize = signal.position_size_fraction !== undefined && signal.position_size_fraction !== null
+                  ? formatOptionalPercent(signal.position_size_fraction, 1)
+                  : 'N/A';
+              const stopLoss = signal.stop_loss !== undefined && signal.stop_loss !== null && !Number.isNaN(Number(signal.stop_loss))
+                  ? displayValue(Number(signal.stop_loss))
+                  : 'N/A';
+              const takeProfit = signal.take_profit !== undefined && signal.take_profit !== null && !Number.isNaN(Number(signal.take_profit))
+                  ? displayValue(Number(signal.take_profit))
+                  : 'N/A';
+              const atrValue = signal.atr_14 !== undefined && signal.atr_14 !== null && !Number.isNaN(Number(signal.atr_14))
+                  ? displayValue(Number(signal.atr_14))
+                  : 'N/A';
+              const volValue = formatOptionalPercent(signal.volatility_14, 2);
+
+              const reasoningItems = Array.isArray(signal.reasoning)
+                  ? signal.reasoning.map((item) => {
+                      const featureLabel = formatLabel(item.feature || 'Feature');
+                      const directionLabel = formatLabel(item.direction || 'Neutral');
+                      const weightLabel = formatOptionalPercent(item.weight || 0, 1);
+                      const valueLabel = formatMetric(item.value || 0, 4);
+                      return `<li><strong>${featureLabel}</strong> (${directionLabel}) • weight ${weightLabel}, value ${valueLabel}</li>`;
+                  })
+                  : [];
+
+              const reasoningHtml = reasoningItems.length
+                  ? `<div><strong>Top Drivers:</strong><ul class="ai-reasoning-list">${reasoningItems.join('')}</ul></div>`
+                  : '<div class="ai-trading-note">Model factors were balanced; no dominant drivers surfaced.</div>';
+
+              const backtest = aiTrading.backtest || {};
+              const backtestItems = [
+                  `<li><strong>Trades:</strong> ${formatMetric(backtest.trades || 0, 0)}</li>`,
+                  `<li><strong>Hit Rate:</strong> ${formatOptionalPercent(backtest.hit_rate || 0, 1)}</li>`,
+                  `<li><strong>Strategy Return:</strong> ${formatOptionalPercent(backtest.strategy_return || 0, 2)}</li>`,
+                  `<li><strong>Buy & Hold:</strong> ${formatOptionalPercent(backtest.buy_hold_return || 0, 2)}</li>`,
+                  `<li><strong>Max Drawdown:</strong> ${formatOptionalPercent(backtest.max_drawdown || 0, 2)}</li>`,
+                  `<li><strong>Avg Trade Return:</strong> ${formatOptionalPercent(backtest.avg_trade_return || 0, 2)}</li>`
+              ];
+
+              const lastSignals = Array.isArray(backtest.last_signals)
+                  ? backtest.last_signals.map((item) => {
+                      const actionText = formatLabel(item.signal || 'Hold');
+                      const probText = formatOptionalPercent(item.probability || 0, 1);
+                      const retText = formatOptionalPercent(item.next_day_return || 0, 2);
+                      return `<li>${item.date || 'Recent'} • ${actionText} @ ${probText}, realised ${retText}</li>`;
+                  })
+                  : [];
+
+              const lastSignalsHtml = lastSignals.length
+                  ? `<div><strong>Recent Trades:</strong><ul class="ai-backtest-list">${lastSignals.join('')}</ul></div>`
+                  : '';
+
+              const model = aiTrading.model_summary || {};
+              const featureCount = Array.isArray(model.feature_columns) ? model.feature_columns.length : 0;
+
+              const metricsGrid = `
+                  <div class="ai-trading-grid">
+                      <div class="ai-trading-metric">
+                          <span>Probability ⬆︎ / ⬇︎</span>
+                          <strong>${probabilityUp} / ${probabilityDown}</strong>
+                      </div>
+                      <div class="ai-trading-metric">
+                          <span>Signal Confidence</span>
+                          <strong>${confidence}</strong>
+                      </div>
+                      <div class="ai-trading-metric">
+                          <span>Expected Daily Edge</span>
+                          <strong>${expectedReturn}</strong>
+                      </div>
+                      <div class="ai-trading-metric">
+                          <span>Suggested Position</span>
+                          <strong>${positionSize}</strong>
+                      </div>
+                      <div class="ai-trading-metric">
+                          <span>Stop / Target</span>
+                          <strong>${stopLoss} → ${takeProfit}</strong>
+                      </div>
+                      <div class="ai-trading-metric">
+                          <span>ATR / Volatility</span>
+                          <strong>${atrValue} • ${volValue}</strong>
+                      </div>
+                  </div>
+              `;
+
+              const modelSummary = `
+                  <div class="ai-trading-note">
+                      Model trained on ${formatMetric(model.training_rows || 0, 0)} samples, evaluated on ${formatMetric(model.evaluation_rows || 0, 0)}.
+                      Accuracies — train: ${formatOptionalPercent(model.train_accuracy || 0, 1)}, eval: ${formatOptionalPercent(model.evaluation_accuracy || 0, 1)}.
+                      Features used: ${featureCount}.
+                  </div>
+              `;
+
+              return `
+                  <section>
+                      <h3 class="section-title">AI Trading Strategy</h3>
+                      <div class="highlight-card ai-trading-card">
+                          <span class="ai-action-badge ${actionRaw}">${actionLabel}</span>
+                          ${metricsGrid}
+                          ${reasoningHtml}
+                          <div>
+                              <strong>Backtest (${formatMetric(backtest.evaluation_window || 0, 0)} sessions)</strong>
+                              <ul class="ai-backtest-list">
+                                  ${backtestItems.join('')}
+                              </ul>
+                              ${lastSignalsHtml}
+                          </div>
+                          ${modelSummary}
+                      </div>
+                  </section>
+              `;
+          }
 
         async function handleLogout() {
             try {
@@ -1612,39 +1832,40 @@
                             </div>
                         </section>
                     `;
-                }
+                  }
+                  const dashboardsHtml = renderDashboards(data.stock_dashboards);
+                  const aiTradingHtml = renderAITradingSection(data.ai_trading);
+                  const metaItems = [
+                      `<span class="meta-item"><strong>Current Price:</strong> ${displayValue(data.current_price)}</span>`,
+                      `<span class="meta-item"><strong>As of:</strong> ${formatDateTime(data.last_known_date)}</span>`
+                  ];
+                  if (data.asset_type) {
+                      metaItems.push(`<span class="meta-item"><strong>Asset Type:</strong> ${formatLabel(data.asset_type)}</span>`);
+                  }
+                  if (candlestickSummary.bias && typeof candlestickSummary.bias === 'string' && candlestickSummary.bias.toLowerCase() !== 'neutral') {
+                      metaItems.push(`<span class="meta-item"><strong>Candlestick Bias:</strong> ${formatLabel(candlestickSummary.bias)}</span>`);
+                  }
+                  if (imageSentimentMeta) {
+                      metaItems.push(imageSentimentMeta);
+                  }
+                  const metaHtml = `<div class="forecast-meta">${metaItems.join('')}</div>`;
 
-                const dashboardsHtml = renderDashboards(data.stock_dashboards);
-                const metaItems = [
-                    `<span class="meta-item"><strong>Current Price:</strong> ${displayValue(data.current_price)}</span>`,
-                    `<span class="meta-item"><strong>As of:</strong> ${formatDateTime(data.last_known_date)}</span>`
-                ];
-                if (data.asset_type) {
-                    metaItems.push(`<span class="meta-item"><strong>Asset Type:</strong> ${formatLabel(data.asset_type)}</span>`);
-                }
-                 if (candlestickSummary.bias && typeof candlestickSummary.bias === 'string' && candlestickSummary.bias.toLowerCase() !== 'neutral') {
-                     metaItems.push(`<span class="meta-item"><strong>Candlestick Bias:</strong> ${formatLabel(candlestickSummary.bias)}</span>`);
-                 }
-                if (imageSentimentMeta) {
-                    metaItems.push(imageSentimentMeta);
-                }
-                const metaHtml = `<div class="forecast-meta">${metaItems.join('')}</div>`;
-
-                 resultDiv.innerHTML = `
-                        <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
-                        ${metaHtml}
-                        ${dashboardsHtml}
-                        ${featureFlagsHtml}
-                        ${candlestickHtml}
-                        ${threeDayForecastHtml}
-                        ${weekAheadForecastHtml}
-                        ${priceDiagnosticsHtml}
-                        ${macroSnapshotHtml}
-                        ${fundamentalsHtml}
-                        ${newsSummaryHtml}
-                        ${newsHighlightsHtml}
-                        ${modelRegressorsHtml}
-                    `;
+                  resultDiv.innerHTML = `
+                      <h2>Forecast Summary for ${data.ticker || 'N/A'}</h2>
+                      ${metaHtml}
+                      ${aiTradingHtml}
+                      ${dashboardsHtml}
+                      ${featureFlagsHtml}
+                      ${candlestickHtml}
+                      ${threeDayForecastHtml}
+                      ${weekAheadForecastHtml}
+                      ${priceDiagnosticsHtml}
+                      ${macroSnapshotHtml}
+                      ${fundamentalsHtml}
+                      ${newsSummaryHtml}
+                      ${newsHighlightsHtml}
+                      ${modelRegressorsHtml}
+                  `;
             } catch (error) {
                 loader.style.display = 'none';
                 resultDiv.style.display = 'none';

@@ -18,6 +18,7 @@ import numpy as np
 import secrets
 
 from data_enrichment import build_enriched_dataset, CompanyFundamentalsFetcher, NewsSentimentFetcher
+from ai_trading import generate_ai_trading_plan
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -886,6 +887,23 @@ def forecast_stock_with_image():
             dashboard_views = {}
             logger.error(f"Failed to build dashboard snapshots for {ticker_symbol}: {dashboard_error}", exc_info=True)
 
+        ai_trading_payload = {"status": "unavailable"}
+        try:
+            ai_trading_payload = generate_ai_trading_plan(
+                ticker=ticker_symbol,
+                ohlc_df=stock_ohlc_df,
+                current_price=current_price
+            )
+        except Exception as ai_trading_error:
+            ai_trading_payload = {
+                "status": "error",
+                "reason": "AI trading module failed to generate recommendations."
+            }
+            logger.error(
+                f"Failed to build AI trading plan for {ticker_symbol}: {ai_trading_error}",
+                exc_info=True
+            )
+
         logger.info(
             f"Forecast for {ticker_symbol} (Image Trend: {str(image_trend)}, Market: {market_country}, "
             f"Candlestick Bias: {candlestick_summary.get('bias', 'neutral')}): "
@@ -923,7 +941,8 @@ def forecast_stock_with_image():
             "fundamental_features_original": enrichment_payload.get("fundamental_features_original", []),
             "model_regressors": regressor_columns_for_response,
             "stock_dashboards": dashboard_views,
-            "asset_type": "crypto" if is_crypto else "equity"
+            "asset_type": "crypto" if is_crypto else "equity",
+            "ai_trading": ai_trading_payload
         }
 
         feature_flag_notes = {}

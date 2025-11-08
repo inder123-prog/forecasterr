@@ -6,6 +6,7 @@ This Flask application forecasts short-term prices for equities and leading cryp
 - Company fundamentals (P/E ratios, PEG, dividend yield, beta, market cap, recent and upcoming earnings)
 - News-driven sentiment buckets (overall, tariff, election, economic, global) with the latest headlines and per-article sentiment
 - Price diagnostics (recent volatility, percentile bands, 1M / 1Q returns)
+- AI trading signals (logistic-regression model with backtested buy/sell guidance, risk targets, and position sizing suggestions)
 
 The front-end aggregates these signals so a user can scrutinise the forecast alongside the drivers used by the Prophet model.
 
@@ -96,7 +97,16 @@ All regressors are standardised before being fed into Prophet. Future dates inhe
 - Crypto dashboards and forecasts use the same Prophet workflow. Fundamentals may be sparse—Yahoo Finance does not expose valuation ratios for most digital assets.
 - Macro and news enrichment continues to run; when specialised crypto macro indicators are needed, extend `data_enrichment.py` with alternative data sources.
 
-### 7. Limitations & Next Steps
+### 7. AI Trading Strategy
+
+Every forecast response now includes an **AI Trading Strategy** section powered by a lightweight logistic-regression classifier trained on enriched OHLC history:
+
+- Technical feature stack covers price momentum, volatility bands, EMA spreads, MACD histogram, RSI, ATR, and volume z-scores.
+- The model retrains per request (with a minimum 120 observations) and surfaces the latest buy / sell / hold recommendation, probability split, and suggested risk parameters (stop, target, position sizing).
+- A walk-forward evaluation window benchmarks the strategy against buy-and-hold, reporting hit rate, drawdown, and recent trades for transparency.
+- When history is insufficient or scikit-learn is unavailable, the UI gracefully reports that signals are unavailable without blocking forecasts.
+
+### 8. Limitations & Next Steps
 
 - Without a FRED key the macro-regressor benefits are disabled (flagged in the UI); consider enforcing the key or caching recent pulls.
 - News sentiment currently relies on headline text; richer NLP (entity-level sentiment, LLM summarisation) could reduce noise.

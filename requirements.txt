@@ -9,3 +9,4 @@ gunicorn
 requests
 fredapi
 vaderSentiment
+scikit-learn
