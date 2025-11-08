@@ -82,7 +82,8 @@
             flex-wrap: wrap;
         }
 
-        button.cta {
+        button.cta,
+        a.cta {
             min-width: 160px;
             padding: 14px 28px;
             border-radius: 999px;
@@ -93,20 +94,27 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
             color: #0b1120;
             background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        button.cta.secondary {
+        button.cta.secondary,
+        a.cta.secondary {
             color: var(--text-main);
             background: rgba(148, 163, 184, 0.2);
             border: 1px solid rgba(148, 163, 184, 0.35);
         }
 
-        button.cta:hover {
+        button.cta:hover,
+        a.cta:hover {
             transform: translateY(-2px);
             box-shadow: 0 18px 30px rgba(30, 64, 175, 0.35);
         }
 
-        button.cta.secondary:hover {
+        button.cta.secondary:hover,
+        a.cta.secondary:hover {
             box-shadow: 0 16px 28px rgba(148, 163, 184, 0.25);
         }
 
@@ -241,6 +249,32 @@
             box-shadow: none;
         }
 
+        .about-content {
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            color: var(--text-muted);
+        }
+
+        .about-content h3 {
+            margin: 0;
+            font-size: 1.05rem;
+            color: var(--text-main);
+        }
+
+        .about-content ul {
+            margin: 0;
+            padding-left: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .about-content li {
+            line-height: 1.5;
+        }
+
         @media (max-width: 640px) {
             .hero-card {
                 padding: 36px 28px;
@@ -262,6 +296,7 @@
         <div class="actions">
             <button class="cta" id="loginTrigger">Login</button>
             <button class="cta secondary" id="registerTrigger">Register</button>
+            <button class="cta secondary" id="aboutTrigger" type="button">About</button>
         </div>
     </div>
 
@@ -290,6 +325,23 @@
         </div>
     </div>
 
+    <div class="overlay" id="aboutOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal">
+            <button class="close-btn" id="closeAboutModal" aria-label="Close dialog">&times;</button>
+            <h2>About FORECASTERRR</h2>
+            <div class="about-content">
+                <p>FORECASTERRR delivers market intelligence tailored to your investment strategy with AI-powered forecasting and curated insights.</p>
+                <h3>What you can expect:</h3>
+                <ul>
+                    <li>Interactive dashboards and forecasting tools informed by Prophet models.</li>
+                    <li>Data enrichment from real-time news sentiment and company fundamentals.</li>
+                    <li>Curated top tech opportunities, refreshed with the latest market signals.</li>
+                </ul>
+                <p>Sign up or log in to explore the full experience, or reach out to the team at <a href="mailto:support@forecasterrr.ai">support@forecasterrr.ai</a>.</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         const overlay = document.getElementById('authOverlay');
         const modalTitle = document.getElementById('modalTitle');
@@ -301,6 +353,9 @@
         const usernameInput = document.getElementById('usernameInput');
         const submitBtn = document.getElementById('submitBtn');
         const authForm = document.getElementById('authForm');
+        const aboutOverlay = document.getElementById('aboutOverlay');
+        const aboutTrigger = document.getElementById('aboutTrigger');
+        const closeAboutModal = document.getElementById('closeAboutModal');
 
         let currentMode = 'login';
 
@@ -349,6 +404,16 @@
             overlay.setAttribute('aria-hidden', 'true');
         }
 
+        function openAbout() {
+            aboutOverlay.classList.add('visible');
+            aboutOverlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAbout() {
+            aboutOverlay.classList.remove('visible');
+            aboutOverlay.setAttribute('aria-hidden', 'true');
+        }
+
         document.getElementById('loginTrigger').addEventListener('click', () => openModal('login'));
         document.getElementById('registerTrigger').addEventListener('click', () => openModal('register'));
         document.getElementById('closeModal').addEventListener('click', closeModal);
@@ -358,9 +423,20 @@
             }
         });
 
+        aboutTrigger.addEventListener('click', openAbout);
+        closeAboutModal.addEventListener('click', closeAbout);
+        aboutOverlay.addEventListener('click', (event) => {
+            if (event.target === aboutOverlay) {
+                closeAbout();
+            }
+        });
+
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && overlay.classList.contains('visible')) {
                 closeModal();
+            }
+            if (event.key === 'Escape' && aboutOverlay.classList.contains('visible')) {
+                closeAbout();
             }
         });
 
