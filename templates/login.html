@@ -44,6 +44,7 @@
             text-align: center;
             position: relative;
             overflow: hidden;
+            perspective: 1200px;
         }
 
         .hero-card::before {
@@ -63,6 +64,13 @@
             margin: 0;
             font-size: 3rem;
             letter-spacing: 0.3rem;
+            display: inline-block;
+            transform: translateZ(-160px) scale(0.82);
+            opacity: 0;
+            filter: blur(12px);
+            animation: forecasterrrEmerges 3.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+            transform-style: preserve-3d;
+            will-change: transform, opacity, filter;
         }
 
         .tagline {
@@ -153,6 +161,31 @@
             to {
                 opacity: 1;
                 transform: translateY(0);
+            }
+        }
+
+        @keyframes forecasterrrEmerges {
+            0% {
+                transform: translateZ(-160px) scale(0.82);
+                opacity: 0;
+                filter: blur(12px);
+                letter-spacing: 0.5rem;
+            }
+            35% {
+                opacity: 0.4;
+                filter: blur(6px);
+                letter-spacing: 0.45rem;
+            }
+            70% {
+                opacity: 0.85;
+                filter: blur(1.5px);
+                letter-spacing: 0.34rem;
+            }
+            100% {
+                transform: translateZ(0) scale(1);
+                opacity: 1;
+                filter: blur(0);
+                letter-spacing: 0.3rem;
             }
         }
 
