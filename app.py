@@ -14,8 +14,10 @@ import math
 import json
 from pathlib import Path
 from werkzeug.security import generate_password_hash, check_password_hash
+import numpy as np
+import secrets
 
-from data_enrichment import build_enriched_dataset
+from data_enrichment import build_enriched_dataset, CompanyFundamentalsFetcher, NewsSentimentFetcher
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +45,40 @@ def _build_yahoo_headers():
 
 USER_STORE_PATH = Path(__file__).resolve().parent / 'users.json'
 
+TOP_TECH_PASSWORD_SESSION_KEY = "tech_feature_authenticated"
+_DEFAULT_TOP_TECH_PASSWORD = "tech-alpha-access"
+_TOP_TECH_PASSWORD_HASH = os.environ.get("TOP_TECH_PAGE_PASSWORD_HASH")
+_TOP_TECH_PASSWORD = os.environ.get("TOP_TECH_PAGE_PASSWORD", _DEFAULT_TOP_TECH_PASSWORD)
+
+_DEFAULT_TECH_TICKERS = [
+    "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "AVGO", "TSLA", "ORCL", "CRM",
+    "ADBE", "CSCO", "AMD", "INTC", "QCOM", "TXN", "NOW", "AMAT", "LRCX", "MU",
+    "PANW", "SNOW", "CRWD", "DDOG", "IBM", "SMCI", "ANET", "ADI", "NXPI", "KLAC"
+]
+_TECH_TICKERS_OVERRIDE = os.environ.get("TOP_TECH_TICKERS")
+if _TECH_TICKERS_OVERRIDE:
+    override_candidates = [
+        ticker.strip().upper()
+        for ticker in _TECH_TICKERS_OVERRIDE.split(",")
+        if ticker.strip()
+    ]
+    _US_TECH_TICKERS = override_candidates or _DEFAULT_TECH_TICKERS
+else:
+    _US_TECH_TICKERS = _DEFAULT_TECH_TICKERS
+
+_TOP_TECH_SCORING_FACTORS = [
+    ("news_sentiment", 0.30, False),
+    ("news_volume", 0.10, False),
+    ("five_day_return", 0.18, False),
+    ("one_month_return", 0.16, False),
+    ("three_month_return", 0.10, False),
+    ("market_cap_log", 0.08, False),
+    ("forward_pe", 0.05, True),
+    ("peg_ratio", 0.03, True),
+    ("volatility", 0.08, True),
+    ("beta", 0.02, True),
+]
+
 
 def _load_users():
     if not USER_STORE_PATH.exists():
@@ -69,6 +105,250 @@ def _save_users(users: dict):
 
 def _require_authentication():
     return 'user' in session
+
+
+def _verify_top_tech_password(candidate: str) -> bool:
+    if not candidate:
+        return False
+    try:
+        candidate_value = candidate.strip()
+    except Exception:
+        return False
+    if _TOP_TECH_PASSWORD_HASH:
+        try:
+            return check_password_hash(_TOP_TECH_PASSWORD_HASH, candidate_value)
+        except Exception:
+            logger.warning("Invalid TOP_TECH_PAGE_PASSWORD_HASH configuration; falling back to plaintext comparison.")
+    reference = _TOP_TECH_PASSWORD or _DEFAULT_TOP_TECH_PASSWORD
+    try:
+        return secrets.compare_digest(reference, candidate_value)
+    except Exception:
+        return reference == candidate_value
+
+
+def _sanitize_news_highlights(items, limit: int = 3):
+    sanitized = []
+    if not items:
+        return sanitized
+    for item in items[:limit]:
+        published = item.get("published")
+        if isinstance(published, (pd.Timestamp, datetime)):
+            try:
+                published_iso = published.to_pydatetime().isoformat()
+            except Exception:
+                published_iso = published.isoformat()
+        else:
+            published_iso = published
+        sentiment_value = item.get("sentiment")
+        if isinstance(sentiment_value, (np.floating, float, int)):
+            sentiment_value = float(sentiment_value)
+        sanitized.append({
+            "headline": item.get("headline"),
+            "url": item.get("url"),
+            "source": item.get("source"),
+            "published": published_iso,
+            "sentiment": sentiment_value,
+            "categories": list(item.get("categories", []))
+        })
+    return sanitized
+
+
+def _zscore_series(series: pd.Series) -> pd.Series:
+    if series is None:
+        return pd.Series(dtype=float)
+    coerced = pd.to_numeric(series, errors='coerce')
+    finite = coerced.replace([np.inf, -np.inf], np.nan).dropna()
+    if finite.empty:
+        return pd.Series(np.zeros(len(series)), index=series.index, dtype=float)
+    mean = float(finite.mean())
+    std = float(finite.std())
+    if std in (0.0, np.nan) or np.isnan(std):
+        return pd.Series(np.zeros(len(series)), index=series.index, dtype=float)
+    return (coerced - mean) / std
+
+
+def _safe_float(value):
+    try:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+
+# --- Tech stock ranking helper ---
+def _compute_top_tech_rankings(limit: int = 10):
+    candidates = list(dict.fromkeys(_US_TECH_TICKERS))
+    if not candidates:
+        return {
+            "results": [],
+            "universe_size": 0,
+            "universe_tickers": [],
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "weights": {}
+        }
+
+    fundamentals_fetcher = CompanyFundamentalsFetcher()
+    news_fetcher = NewsSentimentFetcher()
+
+    evaluation_records = []
+    now_utc = datetime.utcnow()
+    news_window_start = now_utc - timedelta(days=14)
+    news_window_end = now_utc
+
+    for raw_ticker in candidates:
+        ticker_symbol = (raw_ticker or "").strip().upper()
+        if not ticker_symbol:
+            continue
+        try:
+            ticker_obj = yf.Ticker(ticker_symbol)
+            price_hist = ticker_obj.history(period="6mo")
+            if price_hist is None or price_hist.empty or "Close" not in price_hist.columns:
+                logger.info(f"Skipping {ticker_symbol}: insufficient price history.")
+                continue
+            price_hist = price_hist.dropna(subset=["Close"])
+            if price_hist.empty or len(price_hist) < 15:
+                logger.info(f"Skipping {ticker_symbol}: not enough closing price observations.")
+                continue
+
+            closes = price_hist["Close"]
+            latest_price = float(closes.iloc[-1])
+            five_day_return = float(latest_price / closes.iloc[-6] - 1) if len(closes) > 6 else np.nan
+            one_month_return = float(latest_price / closes.iloc[-22] - 1) if len(closes) > 22 else np.nan
+            three_month_return = float(latest_price / closes.iloc[-66] - 1) if len(closes) > 66 else np.nan
+
+            returns = closes.pct_change().dropna()
+            volatility = float(returns.tail(60).std()) if not returns.empty else np.nan
+            avg_volume = float(price_hist["Volume"].tail(21).mean()) if "Volume" in price_hist.columns else np.nan
+
+            fundamentals = fundamentals_fetcher.get_fundamentals(ticker_symbol) or {}
+            market_cap = fundamentals.get("market_cap")
+            forward_pe = fundamentals.get("forward_pe")
+            peg_ratio = fundamentals.get("peg_ratio")
+            beta = fundamentals.get("beta")
+
+            company_name = ticker_symbol
+            try:
+                info_payload = ticker_obj.get_info()
+                if isinstance(info_payload, dict):
+                    company_name = info_payload.get("shortName") or info_payload.get("longName") or ticker_symbol
+            except Exception as info_error:
+                logger.debug(f"Ticker info unavailable for {ticker_symbol}: {info_error}")
+
+            news_df, news_highlights = news_fetcher.get_news_features(
+                ticker_symbol, news_window_start, news_window_end
+            )
+            sentiment_summary = getattr(news_highlights, "sentiment_summary", {}) or {}
+            news_sentiment = float(sentiment_summary.get("overall_sentiment") or 0.0)
+            news_volume = float(sentiment_summary.get("overall_count") or 0)
+            sanitized_highlights = _sanitize_news_highlights(
+                getattr(news_highlights, "all_headlines", []), limit=3
+            )
+
+            evaluation_records.append({
+                "ticker": ticker_symbol,
+                "company_name": company_name,
+                "latest_price": latest_price,
+                "five_day_return": five_day_return,
+                "one_month_return": one_month_return,
+                "three_month_return": three_month_return,
+                "volatility": volatility,
+                "avg_volume": avg_volume,
+                "market_cap": market_cap,
+                "forward_pe": forward_pe,
+                "peg_ratio": peg_ratio,
+                "beta": beta,
+                "news_sentiment": news_sentiment,
+                "news_volume": news_volume,
+                "news_highlights": sanitized_highlights
+            })
+        except Exception as exc:
+            logger.warning(f"Failed to evaluate tech ticker {ticker_symbol}: {exc}", exc_info=True)
+            continue
+
+    if not evaluation_records:
+        return {
+            "results": [],
+            "universe_size": 0,
+            "universe_tickers": [],
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "weights": {}
+        }
+
+    df = pd.DataFrame(evaluation_records)
+    df["market_cap_log"] = np.log1p(
+        pd.to_numeric(df.get("market_cap"), errors="coerce").fillna(0).clip(lower=0)
+    )
+
+    scoring_factors = list(_TOP_TECH_SCORING_FACTORS)
+
+    component_series_lookup = {}
+    composite_score = pd.Series(np.zeros(len(df)), index=df.index, dtype=float)
+
+    for column, weight, invert in scoring_factors:
+        if column not in df.columns:
+            base_series = pd.Series(np.zeros(len(df)), index=df.index, dtype=float)
+        else:
+            base_series = _zscore_series(df[column])
+        if invert:
+            base_series = base_series * -1
+        component = base_series * weight
+        component_series_lookup[column] = component
+        composite_score = composite_score.add(component, fill_value=0.0)
+
+    df["composite_score"] = composite_score
+    df_sorted = df.sort_values("composite_score", ascending=False).head(max(1, limit))
+
+    results = []
+    for rank, (idx, row) in enumerate(df_sorted.iterrows(), start=1):
+        breakdown = {}
+        for column, _, _ in scoring_factors:
+            component_series = component_series_lookup.get(column)
+            if component_series is None or component_series.empty:
+                continue
+            try:
+                breakdown[column] = round(float(component_series.loc[idx]), 4)
+            except Exception:
+                continue
+
+        score_value = _safe_float(row.get("composite_score"))
+        if score_value is not None:
+            score_value = round(score_value, 4)
+
+        results.append({
+            "rank": rank,
+            "ticker": row.get("ticker"),
+            "companyName": row.get("company_name"),
+            "score": score_value,
+            "latestPrice": _safe_float(row.get("latest_price")),
+            "marketCap": _safe_float(row.get("market_cap")),
+            "forwardPE": _safe_float(row.get("forward_pe")),
+            "pegRatio": _safe_float(row.get("peg_ratio")),
+            "beta": _safe_float(row.get("beta")),
+            "fiveDayReturn": _safe_float(row.get("five_day_return")),
+            "oneMonthReturn": _safe_float(row.get("one_month_return")),
+            "threeMonthReturn": _safe_float(row.get("three_month_return")),
+            "volatility": _safe_float(row.get("volatility")),
+            "averageVolume": _safe_float(row.get("avg_volume")),
+            "newsSentiment": _safe_float(row.get("news_sentiment")),
+            "newsVolume": int(row.get("news_volume")) if not pd.isna(row.get("news_volume")) else 0,
+            "scoreBreakdown": breakdown,
+            "newsHighlights": row.get("news_highlights") or []
+        })
+
+    weights_payload = {
+        column: round(weight * (-1 if invert else 1), 3)
+        for column, weight, invert in scoring_factors
+    }
+
+    return {
+        "results": results,
+        "universe_size": int(len(df)),
+        "universe_tickers": list(df["ticker"]),
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "weights": weights_payload
+    }
+
 
 # --- Helper function to get holidays for Prophet ---
 def get_market_holidays(years, country='US'):
@@ -244,6 +524,34 @@ def index():
     return render_template('index.html', username=session.get('user'))
 
 
+@app.route('/top-tech', methods=['GET', 'POST'])
+def top_tech_portal():
+    if not _require_authentication():
+        return redirect(url_for('index'))
+
+    error_message = None
+    if request.method == 'POST':
+        candidate_password = request.form.get('access_password', '')
+        if _verify_top_tech_password(candidate_password):
+            session[TOP_TECH_PASSWORD_SESSION_KEY] = True
+            return redirect(url_for('top_tech_portal'))
+        error_message = "Invalid access password. Please try again."
+
+    access_granted = bool(session.get(TOP_TECH_PASSWORD_SESSION_KEY))
+    scoring_weights = {
+        factor[0]: round(factor[1] * (-1 if factor[2] else 1), 3)
+        for factor in _TOP_TECH_SCORING_FACTORS
+    }
+
+    return render_template(
+        'top_tech.html',
+        username=session.get('user'),
+        access_granted=access_granted,
+        error_message=error_message,
+        scoring_weights=scoring_weights
+    )
+
+
 @app.route('/api/register', methods=['POST'])
 def register_user():
     payload = request.get_json(silent=True) or {}
@@ -267,6 +575,7 @@ def register_user():
         "email": email
     }
     _save_users(users)
+    session.pop(TOP_TECH_PASSWORD_SESSION_KEY, None)
     session['user'] = username
     return jsonify({"message": "Registration successful.", "username": username})
 
@@ -288,6 +597,7 @@ def login_user():
     if not check_password_hash(user_record.get('password', ''), password):
         return jsonify({"error": "Invalid username or password."}), 400
 
+    session.pop(TOP_TECH_PASSWORD_SESSION_KEY, None)
     session['user'] = username
     return jsonify({"message": "Login successful.", "username": username})
 
@@ -295,12 +605,14 @@ def login_user():
 @app.route('/api/logout', methods=['POST'])
 def logout_user():
     session.pop('user', None)
+    session.pop(TOP_TECH_PASSWORD_SESSION_KEY, None)
     return jsonify({"message": "Logged out."})
 
 
 @app.route('/logout', methods=['GET'])
 def logout_redirect():
     session.pop('user', None)
+    session.pop(TOP_TECH_PASSWORD_SESSION_KEY, None)
     return redirect(url_for('index'))
 
 @app.route('/forecast_with_image', methods=['POST'])
@@ -852,6 +1164,31 @@ def company_search():
     except Exception as exc:
         logger.error(f"Unexpected error during company search for '{query}': {exc}", exc_info=True)
         return jsonify({"error": "Internal error while searching companies.", "results": []}), 500
+
+
+@app.route('/api/top-tech-stocks', methods=['POST'])
+def api_top_tech_stocks():
+    if not _require_authentication():
+        return jsonify({"error": "Unauthorized"}), 401
+    if not session.get(TOP_TECH_PASSWORD_SESSION_KEY):
+        return jsonify({"error": "Access denied. Unlock the Top Tech Stocks page first."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    requested_limit = payload.get("limit", 10)
+    try:
+        limit = int(requested_limit)
+    except (ValueError, TypeError):
+        limit = 10
+    limit = max(1, min(limit, 25))
+
+    try:
+        rankings_payload = _compute_top_tech_rankings(limit=limit)
+    except Exception as exc:
+        logger.error(f"Failed to compute top tech rankings: {exc}", exc_info=True)
+        return jsonify({"error": "Unable to compute rankings at this time."}), 500
+
+    return jsonify(rankings_payload)
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))

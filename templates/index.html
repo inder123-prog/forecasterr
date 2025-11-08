@@ -66,6 +66,26 @@
             transition: transform 0.15s ease, box-shadow 0.2s ease;
         }
 
+          .nav-link-btn {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              padding: 10px 18px;
+              border-radius: 999px;
+              font-weight: 600;
+              text-decoration: none;
+              background: rgba(255, 255, 255, 0.12);
+              color: #fff;
+              border: 1px solid rgba(255, 255, 255, 0.32);
+              transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+          }
+
+          .nav-link-btn:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 12px 24px rgba(13, 110, 253, 0.3);
+              background: rgba(255, 255, 255, 0.22);
+          }
+
         .logout-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 12px 24px rgba(220, 38, 38, 0.3);
@@ -760,6 +780,7 @@
                 <div class="brand">FORECASTERRR</div>
                 <div class="nav-right">
                     <span class="welcome-text">Welcome, {{ username }}!</span>
+                      <a class="nav-link-btn" href="{{ url_for('top_tech_portal') }}">Top Tech Leaders</a>
                     <button class="logout-btn" id="logoutBtn" type="button">Logout</button>
                 </div>
             </div>

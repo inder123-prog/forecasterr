@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FORECASTERRR | Top US Tech Leaders</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --accent: #7c3aed;
+            --background: #0f172a;
+            --card-bg: #111c36;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f97316;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", "Segoe UI", Tahoma, sans-serif;
+            background: radial-gradient(circle at top, rgba(37, 99, 235, 0.3), transparent 55%), var(--background);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 28px 20px 40px;
+        }
+
+        .top-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 20px;
+            padding: 16px 24px;
+            margin-bottom: 28px;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(12px);
+        }
+
+        .brand {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: 0.15rem;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .welcome-text {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .nav-link-btn,
+        .logout-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 18px;
+            border-radius: 999px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+            cursor: pointer;
+        }
+
+        .nav-link-btn {
+            background: rgba(148, 163, 184, 0.18);
+            color: var(--text-main);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+        }
+
+        .nav-link-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(124, 58, 237, 0.3);
+            background: rgba(148, 163, 184, 0.28);
+        }
+
+        .logout-btn {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff;
+            border: none;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(239, 68, 68, 0.35);
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: rgba(15, 23, 42, 0.82);
+            border-radius: 24px;
+            padding: 38px 42px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            box-shadow: 0 25px 48px rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(14px);
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 2.2rem;
+        }
+
+        .subtitle {
+            margin: 0 0 28px;
+            color: var(--text-muted);
+            font-size: 1rem;
+            max-width: 720px;
+        }
+
+        .unlock-card {
+            max-width: 460px;
+            margin: 0 auto;
+            background: rgba(17, 24, 39, 0.85);
+            border: 1px solid rgba(37, 99, 235, 0.28);
+            padding: 32px 34px;
+            border-radius: 22px;
+            box-shadow: 0 28px 44px rgba(15, 23, 42, 0.45);
+            text-align: center;
+        }
+
+        .unlock-card h2 {
+            margin: 0 0 12px;
+            font-size: 1.6rem;
+        }
+
+        .unlock-card p {
+            margin: 0 0 24px;
+            color: var(--text-muted);
+        }
+
+        .password-input {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: rgba(15, 23, 42, 0.9);
+            color: var(--text-main);
+            font-size: 1rem;
+            margin-bottom: 18px;
+            outline: none;
+            transition: border 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .password-input:focus {
+            border-color: rgba(37, 99, 235, 0.9);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+        }
+
+        .primary-btn {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: none;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: #fff;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+
+        .primary-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 18px 34px rgba(79, 70, 229, 0.4);
+        }
+
+        .message {
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+            padding: 12px 14px;
+            border-radius: 12px;
+        }
+
+        .message.error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+
+        .message.info {
+            background: rgba(37, 99, 235, 0.12);
+            border: 1px solid rgba(37, 99, 235, 0.35);
+            color: #bfdbfe;
+        }
+
+        .control-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .limit-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+        }
+
+        .limit-input input {
+            width: 70px;
+            padding: 6px 8px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(15, 23, 42, 0.9);
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .weight-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(51, 65, 85, 0.4);
+            margin: 4px;
+        }
+
+        .weight-chip.positive {
+            border-color: rgba(34, 197, 94, 0.35);
+            background: rgba(22, 163, 74, 0.22);
+            color: #86efac;
+        }
+
+        .weight-chip.negative {
+            border-color: rgba(239, 68, 68, 0.35);
+            background: rgba(185, 28, 28, 0.22);
+            color: #fca5a5;
+        }
+
+        .loader {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 5px solid rgba(148, 163, 184, 0.35);
+            border-top: 5px solid var(--primary);
+            animation: spin 1s linear infinite;
+            margin: 28px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            margin-top: 12px;
+        }
+
+        .results.visible {
+            display: grid;
+            gap: 22px;
+        }
+
+        .stock-card {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 20px;
+            padding: 24px 26px;
+            box-shadow: 0 20px 38px rgba(15, 23, 42, 0.45);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+
+        .rank-badge {
+            font-size: 1.1rem;
+            font-weight: 700;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.22);
+            border: 1px solid rgba(37, 99, 235, 0.4);
+            color: #bfdbfe;
+        }
+
+        .ticker-block h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .ticker-block span {
+            display: block;
+            margin-top: 4px;
+            color: var(--text-muted);
+        }
+
+        .score-chip {
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(124, 58, 237, 0.2);
+            border: 1px solid rgba(124, 58, 237, 0.45);
+            color: #ddd6fe;
+            font-weight: 600;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px 18px;
+            margin-bottom: 18px;
+        }
+
+        .metric {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+        }
+
+        .metric strong {
+            display: block;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .factor-section,
+        .news-section {
+            margin-top: 18px;
+            border-top: 1px solid rgba(148, 163, 184, 0.2);
+            padding-top: 18px;
+        }
+
+        .factor-list,
+        .news-list {
+            list-style: none;
+            margin: 12px 0 0;
+            padding: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .factor-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(30, 41, 59, 0.6);
+            font-size: 0.88rem;
+        }
+
+        .factor-item span {
+            color: var(--text-muted);
+        }
+
+        .factor-score {
+            font-weight: 600;
+        }
+
+        .factor-score.positive {
+            color: #86efac;
+        }
+
+        .factor-score.negative {
+            color: #fca5a5;
+        }
+
+        .news-item {
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .news-item a {
+            color: #93c5fd;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .news-item a:hover {
+            text-decoration: underline;
+        }
+
+        .news-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .news-meta span {
+            margin-right: 10px;
+        }
+
+        @media (max-width: 720px) {
+            body {
+                padding: 20px 16px 32px;
+            }
+
+            .container {
+                padding: 28px 24px;
+            }
+
+            .card-header {
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="brand">FORECASTERRR</div>
+        <div class="nav-right">
+            <span class="welcome-text">Hi, {{ username }}!</span>
+            <a class="nav-link-btn" href="{{ url_for('index') }}">Back to Forecasts</a>
+            <form action="{{ url_for('logout_redirect') }}" method="get" style="margin: 0;">
+                <button class="logout-btn" type="submit">Logout</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container">
+        {% if not access_granted %}
+            <div class="unlock-card">
+                <h2>Unlock Top Tech Leaders</h2>
+                <p>Enter the shared passcode to access the sentiment-weighted leaderboard of US technology stocks.</p>
+                {% if error_message %}
+                    <div class="message error">{{ error_message }}</div>
+                {% endif %}
+                <form method="POST">
+                    <input class="password-input" type="password" name="access_password" placeholder="Access password" required>
+                    <button class="primary-btn" type="submit">Unlock Feature</button>
+                </form>
+            </div>
+        {% else %}
+            <h1>Top 10 US Technology Stocks</h1>
+            <p class="subtitle">
+                Ranked using a composite score that blends short-term price momentum, news sentiment, headline velocity,
+                valuation discipline, market capitalization strength, and risk factors. Click generate to refresh the leaderboard.
+            </p>
+
+            <div class="control-bar">
+                <button class="primary-btn" id="generateBtn" type="button">Generate Recommendations</button>
+                <label class="limit-input">
+                    Show
+                    <input type="number" id="limitInput" min="5" max="20" value="10">
+                    tickers
+                </label>
+            </div>
+
+            {% if scoring_weights %}
+                <div class="weights">
+                    {% for label, weight in scoring_weights.items() %}
+                        {% set css_class = 'positive' if weight >= 0 else 'negative' %}
+                        <span class="weight-chip {{ css_class }}">
+                            {{ label.replace('_', ' ').title() }}: {{ "%.2f"|format(weight) }}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div id="statusMessage" class="message info" style="display: none;"></div>
+            <div id="loader" class="loader"></div>
+            <div id="resultsContainer" class="results"></div>
+        {% endif %}
+    </div>
+
+    {% if access_granted %}
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const limitInput = document.getElementById('limitInput');
+        const loader = document.getElementById('loader');
+        const statusMessage = document.getElementById('statusMessage');
+        const resultsContainer = document.getElementById('resultsContainer');
+
+        function showStatus(message, type = 'info') {
+            if (!statusMessage) return;
+            if (!message) {
+                statusMessage.style.display = 'none';
+                statusMessage.textContent = '';
+                statusMessage.className = 'message';
+                return;
+            }
+            statusMessage.textContent = message;
+            statusMessage.className = `message ${type}`;
+            statusMessage.style.display = 'block';
+        }
+
+        function formatNumber(value, decimals = 0) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return 'N/A';
+            }
+            return Number(value).toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        function formatCurrency(value) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return 'N/A';
+            }
+            if (Math.abs(value) >= 1e12) {
+                return `$${(value / 1e12).toFixed(2)}T`;
+            }
+            if (Math.abs(value) >= 1e9) {
+                return `$${(value / 1e9).toFixed(2)}B`;
+            }
+            if (Math.abs(value) >= 1e6) {
+                return `$${(value / 1e6).toFixed(2)}M`;
+            }
+            return `$${Number(value).toFixed(2)}`;
+        }
+
+        function formatPercent(value) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return 'N/A';
+            }
+            return `${(Number(value) * 100).toFixed(2)}%`;
+        }
+
+        function formatScore(value) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return 'N/A';
+            }
+            return Number(value).toFixed(3);
+        }
+
+        function renderNews(newsHighlights) {
+            if (!Array.isArray(newsHighlights) || newsHighlights.length === 0) {
+                return '<p class="news-empty">No recent headlines captured in the news window.</p>';
+            }
+            return `
+                <ul class="news-list">
+                    ${newsHighlights.map(item => `
+                        <li class="news-item">
+                            ${item.url ? `<a href="${item.url}" target="_blank" rel="noopener">${item.headline || 'Untitled headline'}</a>` : `<strong>${item.headline || 'Untitled headline'}</strong>`}
+                            <div class="news-meta">
+                                ${item.published ? `<span>${new Date(item.published).toLocaleString()}</span>` : ''}
+                                ${typeof item.sentiment === 'number' ? `<span>Sentiment: ${item.sentiment.toFixed(3)}</span>` : ''}
+                                ${item.categories && item.categories.length ? `<span>Tags: ${item.categories.join(', ')}</span>` : ''}
+                            </div>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+        }
+
+        function renderFactorBreakdown(breakdown) {
+            if (!breakdown || typeof breakdown !== 'object') {
+                return '<p class="news-empty">No factor breakdown available.</p>';
+            }
+            const entries = Object.entries(breakdown);
+            if (!entries.length) {
+                return '<p class="news-empty">No factor breakdown available.</p>';
+            }
+            return `
+                <ul class="factor-list">
+                    ${entries.map(([label, score]) => {
+                        const normalizedLabel = label.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+                        let css = 'factor-score';
+                        if (typeof score === 'number') {
+                            if (score > 0.0001) css += ' positive';
+                            if (score < -0.0001) css += ' negative';
+                        }
+                        const displayScore = Number.isFinite(score) ? score.toFixed(3) : 'N/A';
+                        return `
+                            <li class="factor-item">
+                                <span>${normalizedLabel}</span>
+                                <span class="${css}">${displayScore}</span>
+                            </li>
+                        `;
+                    }).join('')}
+                </ul>
+            `;
+        }
+
+        function renderResults(data) {
+            if (!resultsContainer) return;
+            if (!data || !Array.isArray(data.results) || !data.results.length) {
+                resultsContainer.className = 'results visible';
+                resultsContainer.innerHTML = '<p class="message info">No qualifying tickers were ranked. Try again later.</p>';
+                return;
+            }
+
+            const cardsHtml = data.results.map(stock => `
+                <div class="stock-card">
+                    <div class="card-header">
+                        <span class="rank-badge">#${stock.rank ?? ''}</span>
+                        <div class="ticker-block">
+                            <h3>${stock.ticker || ''}</h3>
+                            <span>${stock.companyName || ''}</span>
+                        </div>
+                        <span class="score-chip">Composite Score: ${formatScore(stock.score)}</span>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <strong>Latest Price</strong>
+                            ${formatCurrency(stock.latestPrice)}
+                        </div>
+                        <div class="metric">
+                            <strong>Market Cap</strong>
+                            ${formatCurrency(stock.marketCap)}
+                        </div>
+                        <div class="metric">
+                            <strong>Forward P/E</strong>
+                            ${formatNumber(stock.forwardPE, 2)}
+                        </div>
+                        <div class="metric">
+                            <strong>PEG Ratio</strong>
+                            ${formatNumber(stock.pegRatio, 2)}
+                        </div>
+                        <div class="metric">
+                            <strong>5 Day Return</strong>
+                            ${formatPercent(stock.fiveDayReturn)}
+                        </div>
+                        <div class="metric">
+                            <strong>1 Month Return</strong>
+                            ${formatPercent(stock.oneMonthReturn)}
+                        </div>
+                        <div class="metric">
+                            <strong>3 Month Return</strong>
+                            ${formatPercent(stock.threeMonthReturn)}
+                        </div>
+                        <div class="metric">
+                            <strong>Volatility (1M)</strong>
+                            ${formatPercent(stock.volatility)}
+                        </div>
+                        <div class="metric">
+                            <strong>News Sentiment</strong>
+                            ${formatNumber(stock.newsSentiment, 3)}
+                        </div>
+                        <div class="metric">
+                            <strong>Headline Count</strong>
+                            ${formatNumber(stock.newsVolume, 0)}
+                        </div>
+                    </div>
+                    <div class="factor-section">
+                        <h4>Score Factors</h4>
+                        ${renderFactorBreakdown(stock.scoreBreakdown)}
+                    </div>
+                    <div class="news-section">
+                        <h4>Recent News Signals</h4>
+                        ${renderNews(stock.newsHighlights)}
+                    </div>
+                </div>
+            `).join('');
+
+            resultsContainer.innerHTML = cardsHtml;
+            resultsContainer.className = 'results visible';
+        }
+
+        async function fetchRankings() {
+            if (!resultsContainer || !loader) return;
+            showStatus('');
+            resultsContainer.className = 'results';
+            resultsContainer.innerHTML = '';
+            loader.style.display = 'block';
+            const limitValue = Number(limitInput?.value ?? 10);
+            const body = { limit: Number.isFinite(limitValue) ? limitValue : 10 };
+
+            try {
+                const response = await fetch('/api/top-tech-stocks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body)
+                });
+
+                loader.style.display = 'none';
+
+                if (response.status === 401) {
+                    showStatus('Session expired. Redirecting to login...', 'error');
+                    setTimeout(() => window.location.href = '/', 800);
+                    return;
+                }
+
+                if (response.status === 403) {
+                    showStatus('Access revoked. Please re-enter the password to unlock the feature.', 'error');
+                    setTimeout(() => window.location.reload(), 1200);
+                    return;
+                }
+
+                if (!response.ok) {
+                    const errorPayload = await response.json().catch(() => ({}));
+                    const errorMessage = errorPayload.error || 'Unable to generate rankings right now.';
+                    showStatus(errorMessage, 'error');
+                    return;
+                }
+
+                const data = await response.json();
+                if (data && Array.isArray(data.universe_tickers)) {
+                    showStatus(`Evaluated ${data.universe_size || data.universe_tickers.length} technology tickers.`, 'info');
+                } else {
+                    showStatus('');
+                }
+                renderResults(data);
+            } catch (error) {
+                loader.style.display = 'none';
+                console.error('Failed to fetch top tech stocks:', error);
+                showStatus('Unexpected error fetching rankings. Please try again in a moment.', 'error');
+            }
+        }
+
+        if (generateBtn) {
+            generateBtn.addEventListener('click', fetchRankings);
+        }
+    </script>
+    {% endif %}
+</body>
+</html>
