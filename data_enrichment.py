@@ -377,8 +377,141 @@ class NewsSentimentFetcher:
 class CompanyFundamentalsFetcher:
     """Use yfinance to gather point-in-time company fundamentals."""
 
+    FUNDAMENTAL_DERIVED_KEYS = [
+        "debt_to_equity",
+        "equity_ratio",
+        "current_ratio",
+        "cash_to_debt",
+        "operating_margin",
+        "net_margin",
+        "revenue_growth_qoq",
+        "free_cash_flow_margin",
+        "operating_cash_flow_ratio",
+    ]
+
     def __init__(self):
         self._cache: Dict[str, Dict] = {}
+        self._timeseries_cache: Dict[str, pd.DataFrame] = {}
+
+    @staticmethod
+    def _normalize_quarterly_table(raw_table: Optional[pd.DataFrame]) -> pd.DataFrame:
+        if raw_table is None or raw_table.empty:
+            return pd.DataFrame()
+        table = raw_table.transpose()
+        try:
+            table.index = pd.to_datetime(table.index).tz_localize(None)
+        except Exception:
+            table.index = pd.to_datetime(table.index, errors="coerce")
+            table.index = table.index.tz_localize(None)
+        table = table.sort_index()
+        return table
+
+    @staticmethod
+    def _select_series(table: pd.DataFrame, candidates: List[str]) -> Optional[pd.Series]:
+        if table is None or table.empty:
+            return None
+        for candidate in candidates:
+            if candidate in table.columns:
+                series = pd.to_numeric(table[candidate], errors="coerce")
+                return series
+        return None
+
+    @staticmethod
+    def _safe_divide(numerator: Optional[pd.Series], denominator: Optional[pd.Series]) -> pd.Series:
+        if numerator is None or denominator is None:
+            return pd.Series(dtype=float)
+        denom = denominator.replace(0, np.nan)
+        result = numerator / denom
+        return result.replace([np.inf, -np.inf], np.nan)
+
+    def _build_quarterly_features(self, ticker_symbol: str) -> pd.DataFrame:
+        if ticker_symbol in self._timeseries_cache:
+            cached = self._timeseries_cache[ticker_symbol]
+            return cached.copy()
+
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+        except Exception as exc:
+            logger.warning("Failed to initialize ticker for fundamentals %s: %s", ticker_symbol, exc)
+            self._timeseries_cache[ticker_symbol] = pd.DataFrame()
+            return pd.DataFrame()
+
+        balance_sheet = self._normalize_quarterly_table(getattr(ticker, "quarterly_balance_sheet", None))
+        income_statement = self._normalize_quarterly_table(getattr(ticker, "quarterly_financials", None))
+        cashflow_statement = self._normalize_quarterly_table(getattr(ticker, "quarterly_cashflow", None))
+
+        indices: Optional[pd.DatetimeIndex] = None
+        for table in (balance_sheet, income_statement, cashflow_statement):
+            if table is not None and not table.empty:
+                indices = table.index if indices is None else indices.union(table.index)
+
+        if indices is None or len(indices) == 0:
+            self._timeseries_cache[ticker_symbol] = pd.DataFrame()
+            return pd.DataFrame()
+
+        quarterly_df = pd.DataFrame(index=indices.sort_values())
+
+        def add_feature(name: str, table: pd.DataFrame, candidates: List[str]):
+            series = self._select_series(table, candidates)
+            if series is not None and not series.dropna().empty:
+                quarterly_df[name] = series.reindex(quarterly_df.index)
+
+        add_feature("total_assets", balance_sheet, ["Total Assets"])
+        add_feature("total_liabilities", balance_sheet, ["Total Liab"])
+        add_feature("shareholder_equity", balance_sheet, ["Total Stockholder Equity"])
+        add_feature("cash_and_equivalents", balance_sheet, ["Cash", "Cash And Cash Equivalents"])
+        add_feature("current_assets", balance_sheet, ["Total Current Assets"])
+        add_feature("current_liabilities", balance_sheet, ["Total Current Liabilities"])
+        add_feature("long_term_debt", balance_sheet, ["Long Term Debt"])
+
+        add_feature("total_revenue", income_statement, ["Total Revenue", "Revenue"])
+        add_feature("operating_income", income_statement, ["Operating Income"])
+        add_feature("net_income", income_statement, ["Net Income"])
+
+        add_feature("operating_cash_flow", cashflow_statement, ["Total Cash From Operating Activities", "Operating Cash Flow"])
+        add_feature("capital_expenditures", cashflow_statement, ["Capital Expenditures"])
+        add_feature("free_cash_flow", cashflow_statement, ["Free Cash Flow"])
+
+        for col in quarterly_df.columns:
+            quarterly_df[col] = pd.to_numeric(quarterly_df[col], errors="coerce")
+
+        # Derived ratios
+        quarterly_df["debt_to_equity"] = self._safe_divide(
+            quarterly_df.get("total_liabilities"), quarterly_df.get("shareholder_equity")
+        )
+        quarterly_df["equity_ratio"] = self._safe_divide(
+            quarterly_df.get("shareholder_equity"), quarterly_df.get("total_assets")
+        )
+        quarterly_df["current_ratio"] = self._safe_divide(
+            quarterly_df.get("current_assets"), quarterly_df.get("current_liabilities")
+        )
+        quarterly_df["cash_to_debt"] = self._safe_divide(
+            quarterly_df.get("cash_and_equivalents"), quarterly_df.get("total_liabilities")
+        )
+        quarterly_df["operating_margin"] = self._safe_divide(
+            quarterly_df.get("operating_income"), quarterly_df.get("total_revenue")
+        )
+        quarterly_df["net_margin"] = self._safe_divide(
+            quarterly_df.get("net_income"), quarterly_df.get("total_revenue")
+        )
+        total_revenue_series = quarterly_df.get("total_revenue")
+        quarterly_df["revenue_growth_qoq"] = (
+            total_revenue_series.pct_change().replace([np.inf, -np.inf], np.nan)
+            if total_revenue_series is not None
+            else np.nan
+        )
+        quarterly_df["free_cash_flow_margin"] = self._safe_divide(
+            quarterly_df.get("free_cash_flow"), quarterly_df.get("total_revenue")
+        )
+        quarterly_df["operating_cash_flow_ratio"] = self._safe_divide(
+            quarterly_df.get("operating_cash_flow"), quarterly_df.get("total_liabilities")
+        )
+
+        quarterly_df = quarterly_df.sort_index()
+        quarterly_df = quarterly_df.loc[~quarterly_df.index.duplicated(keep="last")]
+
+        self._timeseries_cache[ticker_symbol] = quarterly_df
+        return quarterly_df.copy()
 
     def get_fundamentals(self, ticker_symbol: str) -> Dict:
         if ticker_symbol in self._cache:
@@ -453,8 +586,52 @@ class CompanyFundamentalsFetcher:
                     elif isinstance(sub_value, (np.integer, int)):
                         record[sub_key] = int(sub_value)
 
+        quarterly_features = self._build_quarterly_features(ticker_symbol)
+        if not quarterly_features.empty:
+            non_null_quarters = quarterly_features.dropna(how="all")
+            if not non_null_quarters.empty:
+                latest_row = non_null_quarters.iloc[-1]
+                latest_period = latest_row.name
+                if isinstance(latest_period, pd.Timestamp):
+                    sanitized["latest_fundamentals_period"] = latest_period.isoformat()
+                for key in self.FUNDAMENTAL_DERIVED_KEYS:
+                    if key in latest_row and pd.notna(latest_row[key]):
+                        sanitized[f"latest_{key}"] = float(latest_row[key])
+
         self._cache[ticker_symbol] = sanitized
         return sanitized
+
+    def get_fundamental_timeseries(
+        self, ticker_symbol: str, start_date: datetime, end_date: datetime
+    ) -> pd.DataFrame:
+        quarterly_features = self._build_quarterly_features(ticker_symbol)
+        if quarterly_features.empty:
+            return pd.DataFrame(columns=["ds"])
+
+        quarterly_features = quarterly_features.loc[
+            (quarterly_features.index >= pd.Timestamp(start_date))
+            & (quarterly_features.index <= pd.Timestamp(end_date))
+        ]
+        if quarterly_features.empty:
+            return pd.DataFrame(columns=["ds"])
+
+        daily_index = pd.date_range(start=start_date, end=end_date, freq="D")
+        daily_df = quarterly_features.reindex(daily_index).ffill()
+        daily_df.index.name = "ds"
+        daily_df = daily_df.reset_index()
+
+        feature_cols = [col for col in daily_df.columns if col != "ds"]
+        if not feature_cols:
+            return pd.DataFrame(columns=["ds"])
+
+        for col in feature_cols:
+            daily_df[col] = pd.to_numeric(daily_df[col], errors="coerce")
+
+        valid_cols = [col for col in feature_cols if not daily_df[col].isna().all()]
+        if not valid_cols:
+            return pd.DataFrame(columns=["ds"])
+
+        return daily_df[["ds"] + valid_cols]
 
 
 def _standardize_features(
@@ -502,6 +679,22 @@ def build_enriched_dataset(
     start_date = (price_df["ds"].min() - pd.Timedelta(days=400)).to_pydatetime()
     end_date = (price_df["ds"].max() + pd.Timedelta(days=buffer_days)).to_pydatetime()
 
+    fundamentals_fetcher = CompanyFundamentalsFetcher()
+    fundamental_features_df = pd.DataFrame(columns=["ds"])
+    fundamental_feature_original_columns: List[str] = []
+    try:
+        fundamental_features_df = fundamentals_fetcher.get_fundamental_timeseries(
+            ticker_symbol, start_date, end_date
+        )
+        if not fundamental_features_df.empty:
+            fundamental_feature_original_columns = [
+                col for col in fundamental_features_df.columns if col != "ds"
+            ]
+    except Exception as fundamentals_error:
+        logger.warning("Fundamental enrichment failed for %s: %s", ticker_symbol, fundamentals_error)
+        fundamental_features_df = pd.DataFrame(columns=["ds"])
+        fundamental_feature_original_columns = []
+
     macro_df = pd.DataFrame(columns=["ds"])
     if enable_macro:
         econ_fetcher = EconomicIndicatorFetcher()
@@ -533,18 +726,28 @@ def build_enriched_dataset(
         feature_master_base = feature_master_base.merge(macro_df, on="ds", how="left")
     if enable_news and not news_df.empty:
         feature_master_base = feature_master_base.merge(news_df, on="ds", how="left")
+    if not fundamental_features_df.empty:
+        feature_master_base = feature_master_base.merge(fundamental_features_df, on="ds", how="left")
 
     base_cols = [col for col in feature_master_base.columns if col != "ds"]
     if base_cols:
         for col in base_cols:
             if col.startswith("news") or col.endswith("_sentiment"):
                 feature_master_base[col] = feature_master_base[col].fillna(0.0)
+            elif col in fundamental_feature_original_columns:
+                feature_master_base[col] = feature_master_base[col].ffill()
             else:
                 feature_master_base[col] = feature_master_base[col].ffill().bfill()
 
     feature_master_scaled, feature_stats = _standardize_features(
         feature_master_base, [col for col in feature_master_base.columns if col != "ds"]
     )
+    fundamental_feature_regressors: List[str] = [
+        feature_stats[col]["scaled_name"]
+        for col in fundamental_feature_original_columns
+        if col in feature_stats
+    ]
+    has_fundamental_features = bool(fundamental_feature_regressors)
 
     feature_master = feature_master_scaled.copy()
     if enable_candlestick and not candlestick_features_df.empty:
@@ -568,7 +771,6 @@ def build_enriched_dataset(
     if candlestick_feature_columns:
         future_regressors[candlestick_feature_columns] = future_regressors[candlestick_feature_columns].fillna(0.0)
 
-    fundamentals_fetcher = CompanyFundamentalsFetcher()
     fundamentals_snapshot = fundamentals_fetcher.get_fundamentals(ticker_symbol)
 
     price_metrics = _build_price_diagnostics(price_df)
@@ -617,13 +819,17 @@ def build_enriched_dataset(
         "price_diagnostics": price_metrics_serialized,
         "has_macro_features": enable_macro and not macro_df.empty,
         "has_news_features": enable_news and not news_df.empty,
+        "has_fundamental_features": has_fundamental_features,
         "candlestick_summary": candlestick_summary or {},
         "has_candlestick_features": enable_candlestick and has_candlestick_features,
         "candlestick_feature_columns": candlestick_feature_columns,
+        "fundamental_feature_columns": fundamental_feature_regressors,
+        "fundamental_features_original": fundamental_feature_original_columns,
         "requested_feature_flags": {
             "macro": enable_macro,
             "news": enable_news,
             "candlestick": enable_candlestick,
+            "fundamental": True,
         },
     }
     return enriched_payload

@@ -913,11 +913,14 @@ def forecast_stock_with_image():
             "feature_flags": {
                 "macro": enrichment_payload.get("has_macro_features", False),
                 "news": enrichment_payload.get("has_news_features", False),
-                "candlestick": enrichment_payload.get("has_candlestick_features", False)
+                "candlestick": enrichment_payload.get("has_candlestick_features", False),
+                "fundamental": enrichment_payload.get("has_fundamental_features", False)
             },
             "feature_flags_requested": enrichment_payload.get("requested_feature_flags", {}),
             "candlestick_patterns": candlestick_summary,
             "candlestick_feature_columns": enrichment_payload.get("candlestick_feature_columns", []),
+            "fundamental_feature_columns": enrichment_payload.get("fundamental_feature_columns", []),
+            "fundamental_features_original": enrichment_payload.get("fundamental_features_original", []),
             "model_regressors": regressor_columns_for_response,
             "stock_dashboards": dashboard_views,
             "asset_type": "crypto" if is_crypto else "equity"
@@ -939,6 +942,8 @@ def forecast_stock_with_image():
                 feature_flag_notes["candlestick"] = "Candlestick patterns could not be derived (insufficient OHLC data)."
         else:
             feature_flag_notes["candlestick"] = "Candlestick analytics disabled for this request."
+        if not enrichment_payload.get("has_fundamental_features", False):
+            feature_flag_notes["fundamental"] = "Fundamental filings unavailable or incomplete for regression enrichment."
 
         response_payload["feature_flag_notes"] = feature_flag_notes
 
