@@ -292,7 +292,8 @@ def _compute_top_tech_rankings(limit: int = 10):
             base_series = _zscore_series(df[column])
         if invert:
             base_series = base_series * -1
-        component = base_series * weight
+        base_series = base_series.fillna(0.0)
+        component = (base_series * weight).fillna(0.0)
         component_series_lookup[column] = component
         composite_score = composite_score.add(component, fill_value=0.0)
 
@@ -307,7 +308,10 @@ def _compute_top_tech_rankings(limit: int = 10):
             if component_series is None or component_series.empty:
                 continue
             try:
-                breakdown[column] = round(float(component_series.loc[idx]), 4)
+                component_value = component_series.loc[idx]
+                if component_value is None or not np.isfinite(component_value):
+                    continue
+                breakdown[column] = round(float(component_value), 4)
             except Exception:
                 continue
 
